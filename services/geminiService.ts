@@ -1,14 +1,8 @@
 
 import { GoogleGenAI } from "@google/genai";
-import { DashboardMetrics } from "../types";
+import { SheetGrid, Tab } from "../types";
 
-// In a real scenario, this would be env variable. 
-// Using placeholder for strict instruction compliance regarding process.env.API_KEY usage
-// The App will require the user to input one if env is missing, or we handle gracefully.
-// However, per instructions, we must assume process.env.API_KEY is available or handle it.
-// Since this is a client-side demo without a bundler to inject env, I will add a check.
-
-export const generateDashboardInsights = async (metrics: DashboardMetrics): Promise<string> => {
+export const generateDashboardInsights = async (tab: Tab, data: SheetGrid): Promise<string> => {
   const apiKey = process.env.API_KEY; 
   if (!apiKey) {
     return "API Key not configured. Unable to generate AI insights.";
@@ -17,29 +11,26 @@ export const generateDashboardInsights = async (metrics: DashboardMetrics): Prom
   try {
     const ai = new GoogleGenAI({ apiKey });
     
-    // Summarize data for the prompt to save tokens
-    const summaryData = {
-      totalRev: metrics.totalRevenue,
-      winRate: (metrics.winRate * 100).toFixed(1) + '%',
-      activePipe: metrics.activePipelineValue,
-      topSources: Object.entries(metrics.dealsBySource)
-        .sort(([,a], [,b]) => b - a)
-        .slice(0, 3)
-        .map(([k,v]) => `${k} (${v})`)
-        .join(', ')
-    };
+    // Prepare data summary based on tab
+    let dataSummary = "";
+    if (tab === Tab.HOME) {
+      dataSummary = "Esta é a visão geral do dashboard com KPIs consolidados de Marketing, Vendas e Financeiro.";
+    } else {
+      // Take first 15 rows for context
+      const sample = data.slice(0, 15).map(row => row.join(" | ")).join("\n");
+      dataSummary = `Dados da aba "${tab.toUpperCase()}":\n${sample}`;
+    }
 
     const prompt = `
-      Atue como um Diretor de Vendas Sênior analisando este dashboard.
-      Dados:
-      - Receita Total (Ganhos): ${summaryData.totalRev}
-      - Taxa de Conversão: ${summaryData.winRate}
-      - Pipeline Ativo: ${summaryData.activePipe}
-      - Top Fontes de Marketing: ${summaryData.topSources}
+      Atue como um Consultor de Negócios Especialista.
+      Estou analisando a aba "${tab}" de um dashboard empresarial.
       
-      Forneça 3 insights estratégicos curtos (máximo 1 frase cada) em Português do Brasil.
-      Foque em: Onde estamos ganhando, onde há risco e uma recomendação de ação.
-      Não use markdown, apenas texto plano separado por quebras de linha.
+      ${dataSummary}
+      
+      Com base nesses dados, forneça 3 insights estratégicos curtos (máximo 2 frases cada) em Português do Brasil.
+      Identifique tendências, pontos de atenção ou oportunidades de melhoria.
+      Seja direto e profissional.
+      Não use markdown complexo, apenas texto plano com quebras de linha.
     `;
 
     const response = await ai.models.generateContent({

@@ -19,6 +19,11 @@ export enum Tab {
   NEW_BUSINESS = 'new_business',
   WON = 'won',
   LOST = 'lost',
+  COMMERCIAL_DATA = 'commercial_data',
+  STORES_INSTALLED = 'stores_installed',
+  NEW_OPPORTUNITIES = 'new_opportunities',
+  GOALS = 'goals',
+  OTHERS = 'others',
 }
 
 export type AppData = {
