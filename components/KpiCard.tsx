@@ -13,6 +13,10 @@ interface KpiCardProps {
   onClick?: () => void;
   onClose?: (e: React.MouseEvent) => void;
   isActive?: boolean;
+  onTitleClick?: (e: React.MouseEvent) => void;
+  isEditingTitle?: boolean;
+  onTitleChange?: (newTitle: string) => void;
+  onTitleBlur?: () => void;
 }
 
 const KpiCard: React.FC<KpiCardProps> = ({ 
@@ -25,7 +29,11 @@ const KpiCard: React.FC<KpiCardProps> = ({
   chart,
   onClick,
   onClose,
-  isActive
+  isActive,
+  onTitleClick,
+  isEditingTitle,
+  onTitleChange,
+  onTitleBlur
 }) => {
   return (
     <div 
@@ -53,7 +61,30 @@ const KpiCard: React.FC<KpiCardProps> = ({
       <div className="flex justify-between items-start gap-4 h-full">
         <div className="flex-1 flex flex-col justify-between h-full overflow-hidden">
           <div className="flex justify-between items-start mb-2">
-            <h3 className="text-gray-400 text-[10px] font-bold uppercase tracking-[0.2em] truncate pr-2">{title}</h3>
+            {isEditingTitle ? (
+              <input 
+                autoFocus
+                type="text"
+                value={title}
+                onChange={(e) => onTitleChange?.(e.target.value)}
+                onBlur={onTitleBlur}
+                onKeyDown={(e) => e.key === 'Enter' && onTitleBlur?.()}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white/10 border-b border-[#70d44c] text-white text-[10px] font-bold uppercase tracking-[0.2em] outline-none px-1 w-full"
+              />
+            ) : (
+              <h3 
+                onClick={(e) => {
+                  if (onTitleClick) {
+                    e.stopPropagation();
+                    onTitleClick(e);
+                  }
+                }}
+                className={`text-gray-400 text-[10px] font-bold uppercase tracking-[0.2em] truncate pr-2 ${onTitleClick ? 'cursor-pointer hover:text-white' : ''}`}
+              >
+                {title}
+              </h3>
+            )}
             {icon && <div className="text-[#70d44c] p-1.5 bg-[#70d44c]/10 rounded-lg shrink-0 lg:hidden">{icon}</div>}
           </div>
           

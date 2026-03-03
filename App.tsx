@@ -114,9 +114,10 @@ const App: React.FC = () => {
   const [pinnedSalesItems, setPinnedSalesItems] = useState<string[]>(() => {
     const saved = localStorage.getItem('pinnedSalesItems');
     try {
-      return saved ? JSON.parse(saved) : ['Total'];
+      // Default to empty as requested: "Na configuração inicial vir com todos os quadros destaques fechados"
+      return saved ? JSON.parse(saved) : [];
     } catch (e) {
-      return ['Total'];
+      return [];
     }
   });
   const [hiddenSalesItems, setHiddenSalesItems] = useState<string[]>(() => {
@@ -141,9 +142,10 @@ const App: React.FC = () => {
   const [pinnedFinanceItems, setPinnedFinanceItems] = useState<string[]>(() => {
     const saved = localStorage.getItem('pinnedFinanceItems');
     try {
-      return saved ? JSON.parse(saved) : ['Total'];
+      // Default to empty as requested
+      return saved ? JSON.parse(saved) : [];
     } catch (e) {
-      return ['Total'];
+      return [];
     }
   });
   const [hiddenFinanceItems, setHiddenFinanceItems] = useState<string[]>(() => {
@@ -169,9 +171,10 @@ const App: React.FC = () => {
   const [pinnedLostItems, setPinnedLostItems] = useState<string[]>(() => {
     const saved = localStorage.getItem('pinnedLostItems');
     try {
-      return saved ? JSON.parse(saved) : ['Total'];
+      // Default to empty as requested
+      return saved ? JSON.parse(saved) : [];
     } catch (e) {
-      return ['Total'];
+      return [];
     }
   });
   const [hiddenLostItems, setHiddenLostItems] = useState<string[]>(() => {
@@ -200,24 +203,14 @@ const App: React.FC = () => {
         return JSON.parse(saved);
       } catch (e) {}
     }
-    // Migration from pinnedHomeItems if exists
-    const oldPinned = localStorage.getItem('pinnedHomeItems');
-    if (oldPinned) {
-        try {
-            const parsed = JSON.parse(oldPinned) as string[];
-            return {
-                negocios: parsed.filter(i => i.startsWith('Novos Negócios - ') || i.startsWith('Negócios ganhos - ') || i.startsWith('Negócios Perdidos - ')),
-                marketing: parsed.filter(i => i.startsWith('Marketing - ')),
-                outros: parsed.filter(i => ['Clima', 'Aniversariantes', 'Tempo de Empresa', 'Notificações'].includes(i))
-            };
-        } catch (e) {}
-    }
     return {
       negocios: ['Novos Negócios - Total', 'Negócios ganhos - Total', 'Negócios Perdidos - Total'],
-      marketing: ['Marketing - Leads', 'Marketing - Oportunidades', 'Marketing - Instagram', 'Marketing - Visita site', 'Marketing - Novos usuários'],
+      marketing: ['Marketing - Leads', 'Marketing - Oportunidades', 'Marketing - Instagram', 'Marketing - Visita site'],
       outros: ['Clima', 'Aniversariantes', 'Tempo de Empresa', 'Notificações']
     };
   });
+
+  const [editingHomeTitleId, setEditingHomeTitleId] = useState<string | null>(null);
 
   const [hiddenHomeItems, setHiddenHomeItems] = useState<string[]>(() => {
     const saved = localStorage.getItem('hiddenHomeItems');
@@ -413,11 +406,16 @@ const App: React.FC = () => {
     
     try {
         loadingRef.current = true;
-        setLoading(true);
-        console.log("Iniciando carregamento de dados...");
+        // Only show full-screen loading if we have no data yet
+        const isInitial = Object.keys(data).length === 0;
+        if (isInitial) setLoading(true);
+        
         const result = await fetchAllSheetData(sheetId, othersGid, othersSheetId, storesGid, opportunitiesGid, goalsGid);
-        setData(result);
-        console.log("Dados carregados com sucesso.");
+        
+        // Only update if we got actual data to prevent clearing the dashboard on transient errors
+        if (result && Object.keys(result).length > 0) {
+            setData(result);
+        }
     } catch (error) {
         console.error("Erro ao carregar dados:", error);
     } finally {
@@ -517,6 +515,14 @@ const App: React.FC = () => {
   }, [loadData, refreshInterval]);
 
   useEffect(() => {
+    if (!isPlaying) setProgress(0);
+  }, [isPlaying]);
+
+  useEffect(() => {
+    setProgress(0);
+  }, [activeTab]);
+
+  useEffect(() => {
     let progressTimer: NodeJS.Timeout;
 
     if (isPlaying) {
@@ -535,14 +541,12 @@ const App: React.FC = () => {
           return prev + (PROGRESS_INTERVAL / cycleDuration) * 100;
         });
       }, PROGRESS_INTERVAL);
-    } else {
-      setProgress(0);
     }
 
     return () => {
       if (progressTimer) clearInterval(progressTimer);
     };
-  }, [isPlaying, cycleDuration]);
+  }, [isPlaying, cycleDuration, activeTab]);
 
   // Helper to clean numeric strings from spreadsheet
   const parseNumeric = (val: string): number => {
@@ -769,9 +773,12 @@ const App: React.FC = () => {
 
       const { total, diff30, sparklineData } = extractRowMetrics(grid, label);
       
+      // Strict check for 0 to hide difference value as requested
+      const hasDiff = diff30 !== 0 && Math.abs(diff30) > 0.001;
+      
       return {
         value: isCurrency ? CURRENCY_FORMATTER.format(total) : total.toLocaleString('pt-BR'),
-        subValue: `${diff30 > 0 ? '+' : ''}${isCurrency ? CURRENCY_FORMATTER.format(diff30) : diff30.toLocaleString('pt-BR')}`,
+        subValue: !hasDiff ? undefined : `${diff30 > 0 ? '+' : ''}${isCurrency ? CURRENCY_FORMATTER.format(diff30) : diff30.toLocaleString('pt-BR')}`,
         trend: diff30 > 0 ? 'up' : diff30 < 0 ? 'down' : 'neutral' as const,
         sparklineData
       };
@@ -792,10 +799,10 @@ const App: React.FC = () => {
                     <WeatherWidget />
                     <button 
                         onClick={handleRemove}
-                        className="absolute top-2 right-2 p-1.5 bg-red-500/80 text-white rounded-full opacity-0 group-hover/card:opacity-100 transition-opacity z-20 hover:bg-red-600"
-                        title="Remover"
+                        className="absolute top-3 right-3 p-1 rounded-full bg-white/0 hover:bg-white/10 text-gray-500 hover:text-white transition-all opacity-0 group-hover/card:opacity-100 z-20"
+                        title="Remover destaque"
                     >
-                        <X size={12} />
+                        <X size={14} />
                     </button>
                 </div>
               </SortableDashboardItem>
@@ -842,6 +849,10 @@ const App: React.FC = () => {
                         delay={(idx + 1) * 100} 
                         badge={badge}
                         isNotification={isNotification}
+                        isEditingTitle={editingHomeTitleId === item}
+                        onTitleClick={() => setEditingHomeTitleId(item)}
+                        onTitleChange={(newTitle) => setCustomHomeTitles(prev => ({ ...prev, [item]: newTitle }))}
+                        onTitleBlur={() => setEditingHomeTitleId(null)}
                     />
                     <button 
                         onClick={handleRemove}
@@ -865,6 +876,10 @@ const App: React.FC = () => {
                     subValue={kpiData.subValue}
                     delay={(idx + 1) * 100} 
                     onClose={handleRemove}
+                    isEditingTitle={editingHomeTitleId === item}
+                    onTitleClick={() => setEditingHomeTitleId(item)}
+                    onTitleChange={(newTitle) => setCustomHomeTitles(prev => ({ ...prev, [item]: newTitle }))}
+                    onTitleBlur={() => setEditingHomeTitleId(null)}
                     chart={kpiData.sparklineData.length > 0 ? (
                       <Sparkline 
                         data={kpiData.sparklineData} 
@@ -970,7 +985,7 @@ const App: React.FC = () => {
                     </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2 max-h-[200px] overflow-y-auto custom-scrollbar p-1">
+                <div className="flex flex-wrap gap-2 mb-6 max-h-[200px] overflow-y-auto custom-scrollbar p-1">
                     {filteredAvailable.length > 0 ? filteredAvailable.map(item => (
                         <button
                             key={item}
@@ -1135,7 +1150,7 @@ const App: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-2 mb-0 max-h-[120px] overflow-y-auto custom-scrollbar p-1">
+                    <div className="flex flex-wrap gap-2 mb-6 max-h-[120px] overflow-y-auto custom-scrollbar p-1">
                         {availableItems.length > 0 ? availableItems.map(item => (
                             <button
                                 key={item}
@@ -1148,6 +1163,31 @@ const App: React.FC = () => {
                         )) : (
                             <p className="text-[10px] text-gray-600 italic">Nenhum item disponível para adicionar.</p>
                         )}
+                    </div>
+
+                    <div className="border-t border-white/5 pt-6">
+                        <h4 className="text-sm font-bold text-[#70d44c] uppercase tracking-wider mb-4">Gerenciar Títulos:</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {pinnedItems.map(item => (
+                                <div key={item} className="flex items-center gap-2 bg-white/5 p-2 rounded-lg border border-white/10">
+                                    <span className="text-[10px] text-gray-500 truncate w-24 shrink-0">{item}</span>
+                                    <input 
+                                        type="text"
+                                        value={customTitles[item] || ''}
+                                        onChange={(e) => setCustomTitles({...customTitles, [item]: e.target.value})}
+                                        placeholder="Título personalizado..."
+                                        className="flex-1 bg-transparent border-b border-white/10 focus:border-[#70d44c] text-[10px] outline-none px-1"
+                                    />
+                                    <button 
+                                        onClick={() => setPinnedItems(pinnedItems.filter(i => i !== item))}
+                                        className="p-1 text-gray-500 hover:text-red-400 transition-colors"
+                                        title="Remover"
+                                    >
+                                        <X size={12} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
             )}
@@ -1168,13 +1208,19 @@ const App: React.FC = () => {
                                 const isCurrency = tab !== Tab.MARKETING;
                                 const trend = diff30 > 0 ? 'up' : diff30 < 0 ? 'down' : 'neutral' as const;
                                 
+                                // Hide difference if it's 0
+                                const hasDiff = diff30 !== 0 && Math.abs(diff30) > 0.001;
+                                const subValue = hasDiff 
+                                    ? `${diff30 > 0 ? '+' : ''}${isCurrency ? CURRENCY_FORMATTER.format(diff30) : diff30.toLocaleString('pt-BR')}`
+                                    : undefined;
+
                                 return (
                                     <SortableDashboardItem key={item} id={item}>
                                         <KpiCard
                                             title={customTitles[item] || item}
                                             value={isCurrency ? CURRENCY_FORMATTER.format(total) : total.toLocaleString('pt-BR')}
                                             trend={trend}
-                                            subValue={`${diff30 > 0 ? '+' : ''}${isCurrency ? CURRENCY_FORMATTER.format(diff30) : diff30.toLocaleString('pt-BR')}`}
+                                            subValue={subValue}
                                             delay={idx * 100}
                                             chart={sparklineData.length > 0 ? (
                                                 <Sparkline 
@@ -1183,6 +1229,7 @@ const App: React.FC = () => {
                                                 />
                                             ) : undefined}
                                             onClose={() => setHiddenItems([...hiddenItems, item])}
+                                            isEditingTitle={false} // Inline editing only on Home for now
                                         />
                                     </SortableDashboardItem>
                                 );
@@ -1425,32 +1472,29 @@ const App: React.FC = () => {
     const goalsGrid = data[Tab.GOALS] || [];
 
     // Extract "Novas Oportunidades" Titles
-    // User says A1 (index 0) and A22 (index 21)
     const planoCompletoTitle = (opportunitiesGrid[0] && opportunitiesGrid[0][0]) || 'PLANO COMPLETO';
     const planoDigitalTitle = (opportunitiesGrid[21] && opportunitiesGrid[21][0]) || 'CREDIÁRIO DIGITAL';
     
     // Extract "Novas Oportunidades" Data
-    // Plano Completo: rows 6 to 16 (index 5 to 15)
     const planoCompletoData = opportunitiesGrid.length > 5 ? opportunitiesGrid.slice(5, 16) : [];
-    // Plano Digital: rows 27 to 37 (index 26 to 36)
     const planoDigitalData = opportunitiesGrid.length > 26 ? opportunitiesGrid.slice(26, 37) : [];
 
-    // Filter stores list to only show filled rows and remove empty ones
+    // Filter stores list
     const filteredStores = storesGrid.slice(1).filter(row => row[0] && row[0].trim() !== '' && row[2] && row[2].trim() !== '');
     const storesCount = filteredStores.length;
 
     return (
-      <div className="h-full p-6 overflow-y-auto custom-scrollbar">
-        <div className="flex justify-between items-center mb-8">
+      <div className="h-full p-6 flex flex-col overflow-hidden">
+        <div className="flex justify-between items-center mb-8 shrink-0">
           <h2 className="text-2xl font-bold flex items-center gap-3 text-white">
             <span className="w-2 h-8 bg-[#70d44c] rounded-full block"></span>
             Dados Comerciais
           </h2>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch">
+        <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-8 overflow-hidden">
           {/* Coluna 1: Metas */}
-          <div className="space-y-6">
+          <div className="space-y-6 overflow-y-auto custom-scrollbar pr-2">
             <div className="bg-gradient-to-br from-[#001a2c]/80 to-[#003554]/40 backdrop-blur-md border border-[#70d44c]/15 p-6 rounded-2xl shadow-xl">
                <h3 className="text-lg font-bold text-white mb-6 border-b border-white/10 pb-4">
                  {(goalsGrid[0] && goalsGrid[0][0]) || 'META GERAL ANO SC e RS - 2026'}
@@ -1480,7 +1524,7 @@ const App: React.FC = () => {
                           </tr>
                         );
                       }) : (
-                         <tr><td colSpan={4} className="py-8 text-center text-gray-500 italic">Sem dados</td></tr>
+                         <tr><td colSpan={4} className="py-4 text-center text-gray-500 italic">Sem dados</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -1561,7 +1605,7 @@ const App: React.FC = () => {
           </div>
 
           {/* Coluna 2: Oportunidades */}
-          <div className="space-y-6">
+          <div className="space-y-6 overflow-y-auto custom-scrollbar pr-2">
              <div className="bg-gradient-to-br from-[#001a2c]/80 to-[#003554]/40 backdrop-blur-md border border-[#70d44c]/15 p-6 rounded-2xl shadow-xl">
                 <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2 border-b border-white/10 pb-4">
                   <Users size={20} className="text-[#70d44c]" />
@@ -1582,7 +1626,7 @@ const App: React.FC = () => {
                         </div>
                      </div>
                    )) : (
-                      <p className="text-center text-gray-500 py-8 italic">Sem dados</p>
+                      <p className="text-center text-gray-500 py-4 italic">Sem dados</p>
                    )}
                 </div>
              </div>
@@ -1607,29 +1651,29 @@ const App: React.FC = () => {
                         </div>
                      </div>
                    )) : (
-                      <p className="text-center text-gray-500 py-8 italic">Sem dados</p>
+                      <p className="text-center text-gray-500 py-4 italic">Sem dados</p>
                    )}
                 </div>
              </div>
           </div>
 
           {/* Coluna 3: Lojas Instaladas */}
-          <div className="space-y-6">
-             <div className="bg-gradient-to-br from-[#001a2c]/80 to-[#003554]/40 backdrop-blur-md border border-[#70d44c]/15 p-6 rounded-2xl shadow-xl">
-                <div className="flex items-center justify-between mb-6 border-b border-white/10 pb-4">
+          <div className="h-full overflow-hidden">
+             <div className="bg-gradient-to-br from-[#001a2c]/80 to-[#003554]/40 backdrop-blur-md border border-[#70d44c]/15 p-6 rounded-2xl shadow-xl flex flex-col h-full">
+                <div className="flex items-center justify-between mb-6 border-b border-white/10 pb-4 shrink-0">
                     <h3 className="text-lg font-bold text-white flex items-center gap-2 relative">
                         <Store size={20} className="text-[#70d44c]" />
                         Lojas instaladas
                         <span 
-                            className="absolute -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-lg shadow-red-500/20"
-                            style={{ right: '9.4rem' }}
+                            className="absolute -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-lg shadow-red-500/20"
+                            style={{ right: '-1.5rem' }}
                         >
                             {storesCount}
                         </span>
                     </h3>
                 </div>
-                <div className="overflow-x-auto max-h-[600px] custom-scrollbar">
-                  <table className="w-full text-xs text-left">
+                <div className="overflow-y-auto custom-scrollbar flex-1">
+                  <table className="w-full text-sm text-left">
                     <tbody className="text-gray-300">
                       {filteredStores.length > 0 ? filteredStores.map((row, idx) => (
                         <tr key={idx} className="border-b border-white/5 hover:bg-white/5 transition-colors">

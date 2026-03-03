@@ -10,9 +10,25 @@ interface SlideshowCardProps {
   delay?: number;
   badge?: number;
   isNotification?: boolean;
+  onTitleClick?: (e: React.MouseEvent) => void;
+  isEditingTitle?: boolean;
+  onTitleChange?: (newTitle: string) => void;
+  onTitleBlur?: () => void;
 }
 
-const SlideshowCard: React.FC<SlideshowCardProps> = ({ title, items, icon: Icon, iconColor, delay = 0, badge, isNotification }) => {
+const SlideshowCard: React.FC<SlideshowCardProps> = ({ 
+  title, 
+  items, 
+  icon: Icon, 
+  iconColor, 
+  delay = 0, 
+  badge, 
+  isNotification,
+  onTitleClick,
+  isEditingTitle,
+  onTitleChange,
+  onTitleBlur
+}) => {
   const [currentIndex, setCurrentIndex] = useState(0);
 
   useEffect(() => {
@@ -47,7 +63,32 @@ const SlideshowCard: React.FC<SlideshowCardProps> = ({ title, items, icon: Icon,
 
         {/* Right: Content */}
         <div className="flex-1 overflow-hidden">
-          <h3 className="text-gray-400 text-[9px] font-bold uppercase tracking-[0.2em] mb-1.5 truncate">{title}</h3>
+          <div className="flex justify-between items-start mb-2">
+            {isEditingTitle ? (
+              <input 
+                autoFocus
+                type="text"
+                value={title}
+                onChange={(e) => onTitleChange?.(e.target.value)}
+                onBlur={onTitleBlur}
+                onKeyDown={(e) => e.key === 'Enter' && onTitleBlur?.()}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white/10 border-b border-[#70d44c] text-white text-[10px] font-bold uppercase tracking-[0.2em] outline-none px-1 w-full"
+              />
+            ) : (
+              <h3 
+                onClick={(e) => {
+                  if (onTitleClick) {
+                    e.stopPropagation();
+                    onTitleClick(e);
+                  }
+                }}
+                className={`text-gray-400 text-[10px] font-bold uppercase tracking-[0.2em] truncate pr-2 ${onTitleClick ? 'cursor-pointer hover:text-white' : ''}`}
+              >
+                {title}
+              </h3>
+            )}
+          </div>
           
           <div className="relative min-h-[3.5rem] flex flex-col justify-center">
             <AnimatePresence mode="wait">
