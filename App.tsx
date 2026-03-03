@@ -1484,7 +1484,7 @@ const App: React.FC = () => {
     const storesCount = filteredStores.length;
 
     return (
-      <div className="h-full p-6 flex flex-col overflow-hidden">
+      <div className="h-full p-6 overflow-y-auto custom-scrollbar">
         <div className="flex justify-between items-center mb-8 shrink-0">
           <h2 className="text-2xl font-bold flex items-center gap-3 text-white">
             <span className="w-2 h-8 bg-[#70d44c] rounded-full block"></span>
@@ -1492,9 +1492,9 @@ const App: React.FC = () => {
           </h2>
         </div>
 
-        <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-8 overflow-hidden">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
           {/* Coluna 1: Metas */}
-          <div className="space-y-6 overflow-y-auto custom-scrollbar pr-2">
+          <div className="space-y-6">
             <div className="bg-gradient-to-br from-[#001a2c]/80 to-[#003554]/40 backdrop-blur-md border border-[#70d44c]/15 p-6 rounded-2xl shadow-xl">
                <h3 className="text-lg font-bold text-white mb-6 border-b border-white/10 pb-4">
                  {(goalsGrid[0] && goalsGrid[0][0]) || 'META GERAL ANO SC e RS - 2026'}
@@ -1605,7 +1605,7 @@ const App: React.FC = () => {
           </div>
 
           {/* Coluna 2: Oportunidades */}
-          <div className="space-y-6 overflow-y-auto custom-scrollbar pr-2">
+          <div className="space-y-6">
              <div className="bg-gradient-to-br from-[#001a2c]/80 to-[#003554]/40 backdrop-blur-md border border-[#70d44c]/15 p-6 rounded-2xl shadow-xl">
                 <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2 border-b border-white/10 pb-4">
                   <Users size={20} className="text-[#70d44c]" />
@@ -1658,7 +1658,7 @@ const App: React.FC = () => {
           </div>
 
           {/* Coluna 3: Lojas Instaladas */}
-          <div className="h-full overflow-hidden">
+          <div className="h-full">
              <div className="bg-gradient-to-br from-[#001a2c]/80 to-[#003554]/40 backdrop-blur-md border border-[#70d44c]/15 p-6 rounded-2xl shadow-xl flex flex-col h-full">
                 <div className="flex items-center justify-between mb-6 border-b border-white/10 pb-4 shrink-0">
                     <h3 className="text-lg font-bold text-white flex items-center gap-2 relative">
@@ -1672,7 +1672,7 @@ const App: React.FC = () => {
                         </span>
                     </h3>
                 </div>
-                <div className="overflow-y-auto custom-scrollbar flex-1">
+                <div className="flex-1">
                   <table className="w-full text-sm text-left">
                     <tbody className="text-gray-300">
                       {filteredStores.length > 0 ? filteredStores.map((row, idx) => (
