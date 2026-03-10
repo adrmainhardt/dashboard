@@ -69,8 +69,16 @@ const App: React.FC = () => {
   const [showGlobalSettings, setShowGlobalSettings] = useState(false);
   const [isSourcesCollapsed, setIsSourcesCollapsed] = useState(true);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    const SIDEBAR_VERSION = '2.0';
+    const savedVersion = localStorage.getItem('sidebarVersion');
     const saved = localStorage.getItem('isSidebarCollapsed');
-    return saved !== null ? saved === 'true' : true;
+    
+    if (saved !== null && savedVersion === SIDEBAR_VERSION) {
+      return saved === 'true';
+    }
+    
+    localStorage.setItem('sidebarVersion', SIDEBAR_VERSION);
+    return true; // Default to collapsed
   });
 
   const parseDate = (dateStr: string) => {
@@ -230,15 +238,34 @@ const App: React.FC = () => {
 
   // Home Dashboard State
   const [homeLayout, setHomeLayout] = useState<Record<string, string[]>>(() => {
+    const LAYOUT_VERSION = '4.0'; // Force reset to version 4.0
+    const savedVersion = localStorage.getItem('homeLayoutVersion');
     const saved = localStorage.getItem('homeLayout');
-    if (saved) {
+    
+    if (saved && savedVersion === LAYOUT_VERSION) {
       try {
         return JSON.parse(saved);
       } catch (e) {}
     }
+    
+    // If no saved layout or version mismatch, use the new default and save version
+    localStorage.setItem('homeLayoutVersion', LAYOUT_VERSION);
     return {
-      negocios: ['Dados Comerciais - Metas', 'Novos Negócios - Total', 'Negócios ganhos - Total', 'Negócios Perdidos - Total', 'Dados Comerciais - Total de Lojas Instaladas', 'Dados Comerciais - Negócios iniciados'],
-      marketing: ['Marketing - Leads', 'Marketing - Oportunidades', 'Marketing - Instagram', 'Marketing - Visita site'],
+      negocios: [
+        'Dados Comerciais - Total de Lojas Instaladas',
+        'Dados Comerciais - Metas',
+        'Dados Comerciais - Negócios iniciados',
+        'Marketing - Clientes comprando',
+        'Marketing - Oportunidades',
+        'Marketing - Uso App',
+        'Marketing - Baixaram o App'
+      ],
+      marketing: [
+        'Marketing - Instagram',
+        'Marketing - Insc. do Canal (Youtube)',
+        'Marketing - Visualizações do Canal',
+        'Marketing - Visita site'
+      ],
       outros: ['Clima', 'Aniversariantes', 'Tempo de Empresa', 'Notificações']
     };
   });
@@ -764,16 +791,20 @@ const App: React.FC = () => {
     const searchLabel = rowLabel.toLowerCase().trim();
     
     if (searchLabel === 'total') {
-      // Look for a row that explicitly says "Total" in any of the first columns
-      row = grid.find(r => r.slice(0, 3).some(cell => cell.toLowerCase().trim() === 'total'));
+      // Look for a row that explicitly says "Total" in the first column
+      row = grid.find(r => r[0] && r[0].toLowerCase().trim() === 'total');
       if (!row) {
-        // Fallback: use the logic from extractTotalFromGrid to find the best "Total" value
         const total = extractTotalFromGrid(grid);
         return { total, diff30: 0, sparklineData: [] };
       }
     } else {
-      // Search for the row label in any column (be very flexible)
-      row = grid.find(r => r.some(cell => cell.toLowerCase().trim().includes(searchLabel)));
+      // Search for the row label primarily in the first column for better precision
+      row = grid.find(r => r[0] && r[0].toLowerCase().trim().includes(searchLabel));
+      
+      // Fallback to searching all columns if not found in the first one
+      if (!row) {
+        row = grid.find(r => r.some(cell => cell.toLowerCase().trim().includes(searchLabel)));
+      }
     }
     
     if (!row) return { total: 0, diff30: 0, sparklineData: [] };
@@ -964,7 +995,12 @@ const App: React.FC = () => {
         }
 
         const kpiData = getHomeKpiData(item);
-        const displayTitle = customHomeTitles[item] || item.replace('Marketing - ', '').replace('Novos Negócios - ', '').replace('Negócios ganhos - ', '').replace('Negócios Perdidos - ', '');
+        const displayTitle = customHomeTitles[item] || item
+            .replace('Marketing - ', '')
+            .replace('Novos Negócios - ', '')
+            .replace('Negócios ganhos - ', '')
+            .replace('Negócios Perdidos - ', '')
+            .replace('Dados Comerciais - ', '');
 
         if (item === 'Dados Comerciais - Metas') {
             const goals = [
@@ -1001,7 +1037,7 @@ const App: React.FC = () => {
                 <SortableDashboardItem key={item} id={item}>
                     <div className="relative group/card">
                         <KpiCard 
-                            title="Total de lojas instaladas"
+                            title={displayTitle}
                             value={kpi.value}
                             subValue={kpi.subValue}
                             trend={kpi.trend}
@@ -1009,6 +1045,10 @@ const App: React.FC = () => {
                             iconPosition="left"
                             delay={(idx + 1) * 100}
                             onClose={handleRemove}
+                            isEditingTitle={editingHomeTitleId === item}
+                            onTitleClick={() => setEditingHomeTitleId(item)}
+                            onTitleChange={(newTitle) => setCustomHomeTitles(prev => ({ ...prev, [item]: newTitle }))}
+                            onTitleBlur={() => setEditingHomeTitleId(null)}
                         />
                     </div>
                 </SortableDashboardItem>
@@ -1017,7 +1057,6 @@ const App: React.FC = () => {
 
         if (item === 'Dados Comerciais - Negócios iniciados') {
             const kpi = getHomeKpiData(item);
-            const displayTitle = customHomeTitles[item] || 'Negócios iniciados';
             return (
                 <SortableDashboardItem key={item} id={item}>
                     <div className="relative group/card">
