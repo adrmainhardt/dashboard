@@ -31,43 +31,43 @@ const WeatherWidget: React.FC = () => {
   const getWeatherStyles = (code: number) => {
     // WMO Weather interpretation codes (WW)
     if (code === 0) return { 
-      icon: <Sun className="text-yellow-400" size={32} />, 
+      icon: <Sun className="text-yellow-400" size={38} />, 
       label: 'Céu Limpo',
       bg: 'from-blue-600/40 to-blue-400/20',
       accent: 'bg-yellow-400/20'
     };
     if ([1, 2, 3].includes(code)) return { 
-      icon: <Cloud className="text-gray-300" size={32} />, 
+      icon: <Cloud className="text-gray-300" size={38} />, 
       label: 'Parcialmente Nublado',
       bg: 'from-blue-700/40 to-slate-500/20',
       accent: 'bg-gray-400/20'
     };
     if ([45, 48].includes(code)) return { 
-      icon: <Wind className="text-gray-400" size={32} />, 
+      icon: <Wind className="text-gray-400" size={38} />, 
       label: 'Neblina',
       bg: 'from-slate-700/40 to-slate-500/20',
       accent: 'bg-slate-400/20'
     };
     if ([51, 53, 55, 61, 63, 65, 80, 81, 82].includes(code)) return { 
-      icon: <CloudRain className="text-blue-400" size={32} />, 
+      icon: <CloudRain className="text-blue-400" size={38} />, 
       label: 'Chuva',
       bg: 'from-blue-900/40 to-blue-700/20',
       accent: 'bg-blue-400/20'
     };
     if ([71, 73, 75, 77, 85, 86].includes(code)) return { 
-      icon: <CloudSnow className="text-white" size={32} />, 
+      icon: <CloudSnow className="text-white" size={38} />, 
       label: 'Neve',
       bg: 'from-slate-100/20 to-blue-200/10',
       accent: 'bg-white/20'
     };
     if ([95, 96, 99].includes(code)) return { 
-      icon: <CloudLightning className="text-amber-500" size={32} />, 
+      icon: <CloudLightning className="text-amber-500" size={38} />, 
       label: 'Trovoadas',
       bg: 'from-purple-900/40 to-slate-900/40',
       accent: 'bg-amber-500/20'
     };
     return { 
-      icon: <Cloud className="text-gray-400" size={32} />, 
+      icon: <Cloud className="text-gray-400" size={38} />, 
       label: 'Nublado',
       bg: 'from-slate-800/40 to-slate-600/20',
       accent: 'bg-gray-400/20'
@@ -76,7 +76,7 @@ const WeatherWidget: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="rounded-2xl p-6 bg-[#003554]/40 backdrop-blur-sm border border-white/5 shadow-lg flex flex-col items-center justify-center h-[140px]">
+      <div className="rounded-2xl px-10 py-8 bg-[#003554]/40 backdrop-blur-sm border border-white/5 shadow-lg flex flex-col items-center justify-center h-[165px]">
         <Loader2 className="animate-spin text-[#70d44c] mb-2" size={24} />
         <p className="text-xs text-gray-500 uppercase tracking-widest">Obtendo clima...</p>
       </div>
@@ -85,7 +85,7 @@ const WeatherWidget: React.FC = () => {
 
   if (error || !weather) {
     return (
-      <div className="rounded-2xl p-6 bg-[#003554]/40 backdrop-blur-sm border border-white/5 shadow-lg flex flex-col items-center justify-center h-[140px]">
+      <div className="rounded-2xl px-10 py-8 bg-[#003554]/40 backdrop-blur-sm border border-white/5 shadow-lg flex flex-col items-center justify-center h-[165px]">
         <Cloud className="text-gray-600 mb-2" size={32} />
         <p className="text-xs text-gray-500 text-center">Não foi possível carregar o clima de Rio do Sul</p>
       </div>
@@ -98,7 +98,7 @@ const WeatherWidget: React.FC = () => {
   const tomorrowInfo = getWeatherStyles(today.weather_code[1]);
 
   return (
-    <div className={`rounded-2xl p-5 bg-gradient-to-br ${currentInfo.bg} backdrop-blur-md border border-white/10 shadow-lg relative overflow-hidden group h-[140px] flex flex-col justify-center`}>
+    <div className={`rounded-2xl px-10 py-8 bg-gradient-to-br ${currentInfo.bg} backdrop-blur-md border border-white/10 shadow-lg relative overflow-hidden group h-[165px] flex flex-col justify-center`}>
       {/* Content Container */}
       <div className="relative z-10 flex items-center gap-6">
         
@@ -126,7 +126,7 @@ const WeatherWidget: React.FC = () => {
             <div className="flex items-center gap-2">
               <div className="flex flex-col items-end leading-tight">
                 <span className="text-sm font-bold text-white">{Math.round(today.temperature_2m_max[1])}°C</span>
-                <span className="text-[9px] text-gray-300 font-medium truncate max-w-[60px]">{tomorrowInfo.label}</span>
+                <span className="text-[9px] text-gray-300 font-medium whitespace-nowrap">{tomorrowInfo.label}</span>
               </div>
               <div className="opacity-80 scale-75">
                 {tomorrowInfo.icon}

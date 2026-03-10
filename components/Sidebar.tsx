@@ -14,6 +14,10 @@ interface SidebarProps {
   onRefresh?: () => void;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
+  theme: 'dark' | 'light';
+  lastUpdated?: string | null;
+  isRefreshing?: boolean;
+  refreshError?: boolean;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ 
@@ -26,7 +30,11 @@ const Sidebar: React.FC<SidebarProps> = ({
   onShowSettings,
   onRefresh,
   isCollapsed = false,
-  onToggleCollapse
+  onToggleCollapse,
+  theme,
+  lastUpdated,
+  isRefreshing,
+  refreshError
 }) => {
   const menuItems = [
     { id: Tab.HOME, label: 'Visão Geral', icon: LayoutDashboard },
@@ -39,8 +47,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   return (
-    <div className={`h-full ${isCollapsed ? 'w-20' : 'w-64'} flex-shrink-0 flex flex-col border-r border-white/10 bg-[#001a2c] shadow-2xl z-10 transition-all duration-500 ease-in-out`}>
-      <div className={`p-6 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} border-b border-white/10 bg-[#001524]`}>
+    <div className={`h-full ${isCollapsed ? 'w-20' : 'w-64'} flex-shrink-0 flex flex-col border-r border-[var(--border)] bg-[var(--bg-sidebar)] shadow-2xl z-10 transition-all duration-500 ease-in-out`}>
+      <div className={`p-6 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} border-b border-[var(--border)] bg-[var(--bg-sidebar-header)]`}>
         {!isCollapsed && (
           <img 
             src={LOGO_URL} 
@@ -70,8 +78,8 @@ const Sidebar: React.FC<SidebarProps> = ({
               }}
               className={`w-full flex items-center ${isCollapsed ? 'justify-center px-0' : 'px-4'} py-3 rounded-xl transition-all duration-300 group ${
                 isActive 
-                  ? 'bg-[#70d44c]/20 text-[#70d44c]' 
-                  : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                  ? 'bg-[var(--accent-muted)] text-[var(--accent)]' 
+                  : 'text-[var(--text-muted)] hover:bg-[var(--text-main)]/5 hover:text-[var(--text-main)]'
               }`}
               title={isCollapsed ? item.label : undefined}
             >
@@ -81,7 +89,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               />
               {!isCollapsed && <span className="font-medium text-sm lg:text-base">{item.label}</span>}
               {isActive && !isCollapsed && (
-                <div className="ml-auto w-1.5 h-1.5 rounded-full bg-[#70d44c] shadow-[0_0_8px_#70d44c]" />
+                <div className="ml-auto w-1.5 h-1.5 rounded-full bg-[var(--accent)] shadow-[0_0_8px_var(--accent)]" />
               )}
             </button>
           );
@@ -89,18 +97,28 @@ const Sidebar: React.FC<SidebarProps> = ({
       </nav>
       
       {!isCollapsed && (
-        <div className={`relative p-6 bg-[#001524]/50`}>
+        <div className={`relative p-6 bg-[var(--bg-sidebar-header)]/50`}>
+          {/* Last Updated Info */}
+          {lastUpdated && (
+            <div className="mb-4 flex items-center gap-2 text-[10px] text-gray-500 font-bold uppercase tracking-widest opacity-60">
+              <RefreshCw size={10} className={`shrink-0 ${isRefreshing ? 'animate-spin text-[var(--accent)]' : ''}`} />
+              <span className={`truncate ${refreshError ? 'text-red-400' : ''}`}>
+                {isRefreshing ? 'Atualizando...' : refreshError ? 'Erro ao atualizar' : `Atualizado: ${lastUpdated}`}
+              </span>
+            </div>
+          )}
+
           {/* Progress Line (acting as border-t) */}
-          <div className="absolute top-0 left-0 h-[1px] bg-white/5 w-full" />
+          <div className="absolute top-0 left-0 h-[1px] bg-[var(--border)] w-full" />
           <div 
-            className="absolute top-0 left-0 h-[1px] bg-[#70d44c] transition-all duration-100 ease-linear shadow-[0_0_8px_#70d44c]"
+            className="absolute top-0 left-0 h-[1px] bg-[var(--accent)] transition-all duration-100 ease-linear shadow-[0_0_8px_var(--accent)]"
             style={{ width: `${progress}%` }}
           />
 
           <div className={`flex items-center gap-2`}>
             <button 
               onClick={onShowAi}
-              className={`flex-[2] px-3 py-2 flex items-center justify-center rounded-lg bg-white/[0.03] text-gray-400 hover:text-white hover:bg-white/10 transition-all`}
+              className={`flex-[2] px-3 py-2 flex items-center justify-center rounded-lg bg-[var(--text-main)]/[0.03] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--text-main)]/10 transition-all`}
               title="Análise (AI)"
             >
               <span className="text-xs font-bold whitespace-nowrap">Análise (AI)</span>
@@ -109,7 +127,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             <div className={`flex flex-1 items-center gap-2`}>
               <button 
                 onClick={onShowSettings}
-                className="w-full flex items-center justify-center p-2 rounded-lg bg-white/[0.03] text-gray-400 hover:text-white hover:bg-white/10 transition-all"
+                className="w-full flex items-center justify-center p-2 rounded-lg bg-[var(--text-main)]/[0.03] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--text-main)]/10 transition-all"
                 title="Configurações"
               >
                 <Settings size={18} />
@@ -117,7 +135,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               
               <button 
                 onClick={onTogglePlay}
-                className={`w-full flex items-center justify-center p-2 rounded-lg transition-all ${isPlaying ? 'bg-[#70d44c]/20 text-[#70d44c]' : 'bg-white/[0.03] text-gray-400 hover:text-white hover:bg-white/10'}`}
+                className={`w-full flex items-center justify-center p-2 rounded-lg transition-all ${isPlaying ? 'bg-[var(--accent-muted)] text-[var(--accent)]' : 'bg-[var(--text-main)]/[0.03] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--text-main)]/10'}`}
                 title={isPlaying ? "Pausar" : "Iniciar Slideshow"}
               >
                 {isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="ml-0.5" />}

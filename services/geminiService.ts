@@ -3,9 +3,9 @@ import { GoogleGenAI } from "@google/genai";
 import { SheetGrid, Tab } from "../types";
 
 export const generateDashboardInsights = async (tab: Tab, data: SheetGrid): Promise<string> => {
-  const apiKey = process.env.API_KEY; 
+  const apiKey = process.env.GEMINI_API_KEY; 
   if (!apiKey) {
-    return "API Key not configured. Unable to generate AI insights.";
+    return "Configuração pendente: A Chave de API (GEMINI_API_KEY) não foi encontrada no ambiente de produção (Vercel).";
   }
 
   try {
@@ -34,13 +34,13 @@ export const generateDashboardInsights = async (tab: Tab, data: SheetGrid): Prom
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
     });
 
     return response.text || "Não foi possível gerar insights no momento.";
   } catch (error) {
     console.error("Gemini API Error:", error);
-    return "Erro ao conectar com a IA para insights.";
+    return "Erro ao conectar com a IA. Verifique se a API Key é válida e se há permissão de acesso.";
   }
 };

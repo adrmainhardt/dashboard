@@ -45,17 +45,17 @@ const SlideshowCard: React.FC<SlideshowCardProps> = ({
 
   return (
     <div 
-      className="relative overflow-hidden rounded-2xl p-5 bg-gradient-to-br from-[#001a2c]/80 to-[#003554]/40 backdrop-blur-md border border-[#70d44c]/15 shadow-lg h-[140px] flex flex-col justify-center animate-in fade-in slide-in-from-bottom-4 duration-700 fill-mode-forwards group"
+      className="relative overflow-hidden rounded-2xl px-10 py-8 bg-gradient-to-br from-[var(--bg-card)]/80 to-[var(--bg-card-gradient-to)]/40 backdrop-blur-md border border-[var(--accent)]/15 shadow-[var(--card-shadow)] h-[165px] flex flex-col justify-center animate-in fade-in slide-in-from-bottom-4 duration-700 fill-mode-forwards group"
       style={{ animationDelay: `${delay}ms` }}
     >
       <div className="relative z-10 flex items-center gap-6">
         {/* Left: Icon */}
         <div className="relative shrink-0">
-          <div className="p-3 bg-[#70d44c]/10 rounded-2xl border border-[#70d44c]/20 group-hover:scale-110 transition-transform duration-500 text-[#70d44c]">
-            <Icon size={32} />
+          <div className="p-3 bg-[var(--accent)]/10 rounded-2xl border border-[var(--accent)]/20 group-hover:scale-110 transition-transform duration-500 text-[var(--accent)]">
+            <Icon size={36} />
           </div>
           {badge !== undefined && badge > 0 && (
-            <div className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-bold h-5 w-5 rounded-full flex items-center justify-center border-2 border-[#001a2c] shadow-lg">
+            <div className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-bold h-5 w-5 rounded-full flex items-center justify-center border-2 border-[var(--bg-card)] shadow-lg">
               {badge}
             </div>
           )}
@@ -73,7 +73,7 @@ const SlideshowCard: React.FC<SlideshowCardProps> = ({
                 onBlur={onTitleBlur}
                 onKeyDown={(e) => e.key === 'Enter' && onTitleBlur?.()}
                 onClick={(e) => e.stopPropagation()}
-                className="bg-white/10 border-b border-[#70d44c] text-white text-[10px] font-bold uppercase tracking-[0.2em] outline-none px-1 w-full"
+                className="bg-[var(--text-main)]/10 border-b border-[var(--accent)] text-[var(--text-main)] text-[11px] font-bold uppercase tracking-[0.25em] outline-none px-1 w-full"
               />
             ) : (
               <h3 
@@ -83,7 +83,7 @@ const SlideshowCard: React.FC<SlideshowCardProps> = ({
                     onTitleClick(e);
                   }
                 }}
-                className={`text-gray-400 text-[10px] font-bold uppercase tracking-[0.2em] truncate pr-2 ${onTitleClick ? 'cursor-pointer hover:text-white' : ''}`}
+                className={`text-[var(--text-muted)] text-[11px] font-bold uppercase tracking-[0.25em] truncate pr-2 ${onTitleClick ? 'cursor-pointer hover:text-[var(--text-main)]' : ''}`}
               >
                 {title}
               </h3>
@@ -103,12 +103,12 @@ const SlideshowCard: React.FC<SlideshowCardProps> = ({
                 <span className={`${
                   isNotification 
                     ? 'text-[0.95rem] font-medium' 
-                    : 'text-sm md:text-[1.6rem] font-bold'
-                } text-white whitespace-normal tracking-tight leading-tight`}>
+                    : 'text-sm md:text-[1.7rem] font-bold'
+                } text-[var(--text-main)] whitespace-normal tracking-tight leading-tight`}>
                   {currentItem.name}
                 </span>
                 {currentItem.value && currentItem.value !== '---' && (
-                  <span className="text-sm font-bold text-[#70d44c] mt-0.5">
+                  <span className="text-sm font-bold text-[var(--accent)] mt-0.5">
                     {currentItem.value}
                   </span>
                 )}
@@ -125,7 +125,7 @@ const SlideshowCard: React.FC<SlideshowCardProps> = ({
             <div 
               key={idx} 
               className={`h-1 w-1 rounded-full transition-all duration-300 ${
-                idx === currentIndex ? 'bg-[#70d44c] scale-125 shadow-[0_0_5px_#70d44c]' : 'bg-white/10'
+                idx === currentIndex ? 'bg-[var(--accent)] scale-125 shadow-[0_0_5px_var(--accent)]' : 'bg-[var(--text-main)]/10'
               }`}
             />
           ))}
@@ -133,7 +133,7 @@ const SlideshowCard: React.FC<SlideshowCardProps> = ({
       )}
 
       {/* Decorative Background Elements */}
-      <div className="absolute -right-8 -top-8 w-24 h-24 bg-[#70d44c] opacity-[0.03] blur-3xl rounded-full pointer-events-none group-hover:opacity-[0.06] transition-opacity duration-700" />
+      <div className="absolute -right-8 -top-8 w-24 h-24 bg-[var(--accent)] opacity-[0.03] blur-3xl rounded-full pointer-events-none group-hover:opacity-[0.06] transition-opacity duration-700" />
     </div>
   );
 };

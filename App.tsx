@@ -4,13 +4,14 @@ import Sidebar from './components/Sidebar';
 import KpiCard from './components/KpiCard';
 import WeatherWidget from './components/WeatherWidget';
 import SlideshowCard from './components/SlideshowCard';
+import MetasSlideshowCard from './components/MetasSlideshowCard';
 import SortableDashboardItem from './components/SortableDashboardItem';
 import { Sparkline } from './components/Charts';
 import { AppData, SheetGrid, Tab, DashboardMetrics } from './types';
 import { fetchAllSheetData } from './services/dataService';
 import { generateDashboardInsights } from './services/geminiService';
 import { CURRENCY_FORMATTER, THEME } from './constants';
-import { RefreshCw, BrainCircuit, Loader2, Info, Settings2, Check, Settings, X, Cake, Clock, Coffee, ChevronUp, ChevronDown, Eye, EyeOff, GripVertical, Bell, PlusCircle, TrendingUp, Store, Users, Target } from 'lucide-react';
+import { RefreshCw, BrainCircuit, Loader2, Info, Settings2, Check, Settings, X, Cake, Clock, Coffee, ChevronUp, ChevronDown, Eye, EyeOff, GripVertical, Bell, PlusCircle, TrendingUp, Store, Users, Target, Play, MousePointer2, Handshake } from 'lucide-react';
 import {
   DndContext, 
   closestCenter,
@@ -39,8 +40,18 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('activeTab', activeTab);
   }, [activeTab]);
-  const [data, setData] = useState<AppData>({});
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<AppData>(() => {
+    const saved = localStorage.getItem('dashboardData');
+    try {
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      return {};
+    }
+  });
+  const [loading, setLoading] = useState(false); // Default to false if we have saved data
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(() => localStorage.getItem('lastUpdated'));
   const loadingRef = React.useRef(false);
   const [insights, setInsights] = useState<string | null>(null);
   const [loadingInsights, setLoadingInsights] = useState(false);
@@ -56,10 +67,19 @@ const App: React.FC = () => {
 
   // Global Settings State
   const [showGlobalSettings, setShowGlobalSettings] = useState(false);
+  const [isSourcesCollapsed, setIsSourcesCollapsed] = useState(true);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     const saved = localStorage.getItem('isSidebarCollapsed');
     return saved === 'true';
   });
+
+  const parseDate = (dateStr: string) => {
+    if (!dateStr) return null;
+    const parts = dateStr.split('/');
+    if (parts.length !== 3) return null;
+    return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+  };
+
   const [sheetId, setSheetId] = useState<string>(() => {
     return localStorage.getItem('sheetId') || SHEET_ID;
   });
@@ -78,9 +98,22 @@ const App: React.FC = () => {
   const [goalsGid, setGoalsGid] = useState<string>(() => {
     return localStorage.getItem('goalsGid') || SHEET_TAB_IDS.GOALS;
   });
+  const [marketingGid, setMarketingGid] = useState<string>(() => {
+    return localStorage.getItem('marketingGid') || SHEET_TAB_IDS.MARKETING;
+  });
+  const [newBusinessGid, setNewBusinessGid] = useState<string>(() => {
+    return localStorage.getItem('newBusinessGid') || SHEET_TAB_IDS.NEW_BUSINESS;
+  });
+  const [wonGid, setWonGid] = useState<string>(() => {
+    return localStorage.getItem('wonGid') || SHEET_TAB_IDS.WON;
+  });
+  const [lostGid, setLostGid] = useState<string>(() => {
+    return localStorage.getItem('lostGid') || SHEET_TAB_IDS.LOST;
+  });
   const [refreshInterval, setRefreshInterval] = useState<number>(() => {
     const saved = localStorage.getItem('refreshInterval');
-    return saved ? parseInt(saved) : 3600000; // Default 1 hour
+    const val = saved ? parseInt(saved) : 900000; // Default 15 min
+    return isNaN(val) || val < 60000 ? 900000 : val; // Min 1 min
   });
 
   // Marketing Dashboard State
@@ -204,7 +237,7 @@ const App: React.FC = () => {
       } catch (e) {}
     }
     return {
-      negocios: ['Novos Negócios - Total', 'Negócios ganhos - Total', 'Negócios Perdidos - Total'],
+      negocios: ['Dados Comerciais - Metas', 'Novos Negócios - Total', 'Negócios ganhos - Total', 'Negócios Perdidos - Total', 'Dados Comerciais - Total de Lojas Instaladas', 'Dados Comerciais - Negócios iniciados'],
       marketing: ['Marketing - Leads', 'Marketing - Oportunidades', 'Marketing - Instagram', 'Marketing - Visita site'],
       outros: ['Clima', 'Aniversariantes', 'Tempo de Empresa', 'Notificações']
     };
@@ -400,29 +433,75 @@ const App: React.FC = () => {
     }
   };
 
+  const dataRef = React.useRef(data);
+  useEffect(() => {
+    dataRef.current = data;
+  }, [data]);
+
   // Load Data
   const loadData = React.useCallback(async () => {
     if (loadingRef.current) return;
     
+    // Safety timeout for the entire loading process
+    const safetyTimeout = setTimeout(() => {
+        if (loadingRef.current) {
+            console.warn("loadData safety timeout reached. Forcing loading state to false.");
+            setLoading(false);
+            loadingRef.current = false;
+        }
+    }, 45000); // 45 seconds safety timeout
+
     try {
         loadingRef.current = true;
-        // Only show full-screen loading if we have no data yet
-        const isInitial = Object.keys(data).length === 0;
-        if (isInitial) setLoading(true);
+        // Only show full-screen loading if we have NO data at all
+        const hasData = Object.keys(dataRef.current).length > 0;
+        if (!hasData) {
+            setLoading(true);
+        } else {
+            setIsRefreshing(true);
+        }
         
-        const result = await fetchAllSheetData(sheetId, othersGid, othersSheetId, storesGid, opportunitiesGid, goalsGid);
+        const result = await fetchAllSheetData(
+            sheetId, 
+            othersGid, 
+            othersSheetId, 
+            storesGid, 
+            opportunitiesGid, 
+            goalsGid,
+            marketingGid,
+            newBusinessGid,
+            wonGid,
+            lostGid
+        );
         
-        // Only update if we got actual data to prevent clearing the dashboard on transient errors
-        if (result && Object.keys(result).length > 0) {
+        // Validation: Only update if we got actual data rows in at least one tab
+        // to prevent clearing the dashboard on transient errors or empty responses
+        const hasActualData = result && Object.keys(result).some(key => {
+            const grid = result[key as Tab];
+            return grid && grid.length > 1; // More than just headers
+        });
+
+        if (hasActualData) {
             setData(result);
+            setRefreshError(false);
+            const now = new Date().toLocaleString('pt-BR');
+            setLastUpdated(now);
+            localStorage.setItem('dashboardData', JSON.stringify(result));
+            localStorage.setItem('lastUpdated', now);
+        } else {
+            console.warn("Dados recebidos parecem vazios ou inválidos. Mantendo dados anteriores.");
+            if (hasData) setRefreshError(true);
         }
     } catch (error) {
         console.error("Erro ao carregar dados:", error);
+        setRefreshError(true);
     } finally {
+        clearTimeout(safetyTimeout);
         setLoading(false);
+        setIsRefreshing(false);
         loadingRef.current = false;
     }
-  }, [sheetId, othersGid, othersSheetId, storesGid, opportunitiesGid, goalsGid]);
+  }, [sheetId, othersGid, othersSheetId, storesGid, opportunitiesGid, goalsGid, marketingGid, newBusinessGid, wonGid, lostGid]);
 
   useEffect(() => {
     localStorage.setItem('cycleDuration', cycleDuration.toString());
@@ -467,6 +546,22 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('goalsGid', goalsGid);
   }, [goalsGid]);
+
+  useEffect(() => {
+    localStorage.setItem('marketingGid', marketingGid);
+  }, [marketingGid]);
+
+  useEffect(() => {
+    localStorage.setItem('newBusinessGid', newBusinessGid);
+  }, [newBusinessGid]);
+
+  useEffect(() => {
+    localStorage.setItem('wonGid', wonGid);
+  }, [wonGid]);
+
+  useEffect(() => {
+    localStorage.setItem('lostGid', lostGid);
+  }, [lostGid]);
 
   useEffect(() => {
     localStorage.setItem('pinnedSalesItems', JSON.stringify(pinnedSalesItems));
@@ -687,20 +782,37 @@ const App: React.FC = () => {
     const valStr = row[totalIndex];
     const total = parseNumeric(valStr);
 
-    // Diff 30 days (sum of last 30 columns before total)
+    // Diff 30 days
     const endIndex = totalIndex;
     const startIndex = Math.max(1, endIndex - 30);
     
-    let current30 = 0;
+    const isCumulative = searchLabel.includes('insc. do canal') || 
+                        searchLabel.includes('instagram') || 
+                        searchLabel.includes('seguidores');
+
+    let diff30 = 0;
     const sparklineData: { date: string; value: number }[] = [];
-    for (let i = startIndex; i < endIndex; i++) {
-      const vStr = row[i] || '0';
-      const val = parseNumeric(vStr);
-      current30 += val;
-      sparklineData.push({ date: i.toString(), value: val });
+    
+    if (isCumulative) {
+      const currentVal = total;
+      // Use the value from 30 columns ago (or the first data column)
+      const prevVal = parseNumeric(row[startIndex] || '0');
+      diff30 = currentVal - prevVal;
+      
+      // Still build sparkline
+      for (let i = startIndex; i < endIndex; i++) {
+        sparklineData.push({ date: i.toString(), value: parseNumeric(row[i] || '0') });
+      }
+    } else {
+      for (let i = startIndex; i < endIndex; i++) {
+        const vStr = row[i] || '0';
+        const val = parseNumeric(vStr);
+        diff30 += val;
+        sparklineData.push({ date: i.toString(), value: val });
+      }
     }
     
-    return { total, diff30: current30, sparklineData };
+    return { total, diff30, sparklineData };
   };
 
   const metrics: DashboardMetrics = useMemo(() => {
@@ -740,18 +852,60 @@ const App: React.FC = () => {
       return (
           <div className="p-12 text-center text-gray-500 flex flex-col items-center justify-center h-full bg-[#00243a] fixed inset-0 z-[200]">
               <Loader2 className="animate-spin mb-4 text-[#70d44c]" size={40} />
-              <p className="text-lg text-white">Carregando dados consolidados...</p>
           </div>
       );
     }
 
     const othersGrid = data[Tab.OTHERS] || [];
     const othersRows = othersGrid.slice(1);
+    const goalsGrid = data[Tab.GOALS] || [];
+    const storesGrid = data[Tab.STORES_INSTALLED] || [];
+
+    // Calculate store counts for Home view
+    const lastMonthDate = new Date();
+    lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
+    const lastMonth = lastMonthDate.getMonth();
+    const lastMonthYear = lastMonthDate.getFullYear();
+
+    const allStores = storesGrid.slice(1).filter(row => row[0] && row[0].trim() !== '' && row[2] && row[2].trim() !== '');
+    const lastMonthStores = allStores.filter(row => {
+        const d = parseDate(row[0]);
+        return d && d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear;
+    });
+
+    const totalStoresCount = allStores.length;
+    const lastMonthCount = lastMonthStores.length;
 
     const getHomeKpiData = (item: string) => {
       let grid: SheetGrid | undefined;
       let label = '';
       let isCurrency = false;
+
+      if (item === 'Dados Comerciais - Total de Lojas Instaladas') {
+        return {
+          value: totalStoresCount.toLocaleString('pt-BR'),
+          subValue: lastMonthCount > 0 ? `+${lastMonthCount}` : undefined,
+          trend: lastMonthCount > 0 ? 'up' : 'neutral' as const,
+          sparklineData: []
+        };
+      }
+
+      if (item === 'Dados Comerciais - Negócios iniciados') {
+        const grid = data[Tab.NEW_OPPORTUNITIES];
+        if (!grid || grid.length < 4) return { value: '0', subValue: undefined, trend: 'neutral' as const, sparklineData: [] };
+        
+        // L3 is Row 3 (index 2), Column L (index 11)
+        // L4 is Row 4 (index 3), Column L (index 11)
+        const value = parseNumeric(grid[2]?.[11] || '0');
+        const diff = parseNumeric(grid[3]?.[11] || '0');
+        
+        return {
+          value: value.toLocaleString('pt-BR'),
+          subValue: diff !== 0 ? `${diff > 0 ? '+' : ''}${diff.toLocaleString('pt-BR')}` : undefined,
+          trend: diff > 0 ? 'up' : diff < 0 ? 'down' : 'neutral' as const,
+          sparklineData: []
+        };
+      }
 
       // Handle both "Marketing" and "Merketing" (typo resilience)
       if (item.toLowerCase().includes('marketing') || item.toLowerCase().includes('merketing')) {
@@ -812,6 +966,80 @@ const App: React.FC = () => {
         const kpiData = getHomeKpiData(item);
         const displayTitle = customHomeTitles[item] || item.replace('Marketing - ', '').replace('Novos Negócios - ', '').replace('Negócios ganhos - ', '').replace('Negócios Perdidos - ', '');
 
+        if (item === 'Dados Comerciais - Metas') {
+            const goals = [
+                { 
+                    title: (goalsGrid[0] && goalsGrid[0][0]) || 'META GERAL ANO SC e RS - 2026',
+                    data: goalsGrid.length > 2 ? goalsGrid.slice(2, 6) : []
+                },
+                { 
+                    title: (goalsGrid[7] && goalsGrid[7][0]) || 'META MÊS FEVEREIRO - SC',
+                    data: goalsGrid.length > 9 ? goalsGrid.slice(9, 13) : []
+                },
+                { 
+                    title: (goalsGrid[14] && goalsGrid[14][0]) || 'META MÊS FEVEREIRO - RS',
+                    data: goalsGrid.length > 16 ? goalsGrid.slice(16, 20) : []
+                }
+            ].filter(g => g.data.length > 0);
+
+            return (
+                <SortableDashboardItem key={item} id={item} className="md:row-span-2">
+                    <div className="relative group/card h-full">
+                        <MetasSlideshowCard 
+                            goals={goals}
+                            delay={(idx + 1) * 100}
+                            onClose={handleRemove}
+                        />
+                    </div>
+                </SortableDashboardItem>
+            );
+        }
+
+        if (item === 'Dados Comerciais - Total de Lojas Instaladas') {
+            const kpi = getHomeKpiData(item);
+            return (
+                <SortableDashboardItem key={item} id={item}>
+                    <div className="relative group/card">
+                        <KpiCard 
+                            title="Total de lojas instaladas"
+                            value={kpi.value}
+                            subValue={kpi.subValue}
+                            trend={kpi.trend}
+                            icon={<Store size={24} />}
+                            iconPosition="left"
+                            delay={(idx + 1) * 100}
+                            onClose={handleRemove}
+                        />
+                    </div>
+                </SortableDashboardItem>
+            );
+        }
+
+        if (item === 'Dados Comerciais - Negócios iniciados') {
+            const kpi = getHomeKpiData(item);
+            const displayTitle = customHomeTitles[item] || 'Negócios iniciados';
+            return (
+                <SortableDashboardItem key={item} id={item}>
+                    <div className="relative group/card">
+                        <KpiCard 
+                            title={displayTitle}
+                            value={kpi.value}
+                            subValue={kpi.subValue}
+                            trend={kpi.trend}
+                            icon={<Handshake size={24} />}
+                            iconPosition="left"
+                            delay={(idx + 1) * 100}
+                            onClose={handleRemove}
+                            isEditingTitle={editingHomeTitleId === item}
+                            onTitleClick={() => setEditingHomeTitleId(item)}
+                            onTitleChange={(newTitle) => setCustomHomeTitles(prev => ({ ...prev, [item]: newTitle }))}
+                            onTitleBlur={() => setEditingHomeTitleId(null)}
+                        />
+                    </div>
+                </SortableDashboardItem>
+            );
+        }
+
         if (['Aniversariantes', 'Tempo de Empresa', 'Notificações'].includes(item)) {
             let items: { name: string; value: string }[] = [];
             let icon = Cake;
@@ -866,6 +1094,17 @@ const App: React.FC = () => {
             );
         }
 
+        let icon = undefined;
+        let iconPosition: 'left' | 'right' = 'right';
+
+        if (item.toLowerCase().includes('visita site')) {
+            icon = <MousePointer2 size={24} />;
+            iconPosition = 'left';
+        } else if (item.toLowerCase().includes('insc. do canal')) {
+            icon = <Play size={24} />;
+            iconPosition = 'left';
+        }
+
         return (
           <SortableDashboardItem key={item} id={item}>
             <div className="relative group/card">
@@ -874,6 +1113,8 @@ const App: React.FC = () => {
                     value={kpiData.value} 
                     trend={kpiData.trend} 
                     subValue={kpiData.subValue}
+                    icon={icon}
+                    iconPosition={iconPosition}
                     delay={(idx + 1) * 100} 
                     onClose={handleRemove}
                     isEditingTitle={editingHomeTitleId === item}
@@ -898,7 +1139,15 @@ const App: React.FC = () => {
 
     // Get all possible items from all tabs to allow adding them
     const getAllAvailableItems = () => {
-        const items: string[] = ['Clima', 'Aniversariantes', 'Tempo de Empresa', 'Notificações'];
+        const items: string[] = [
+            'Clima', 
+            'Aniversariantes', 
+            'Tempo de Empresa', 
+            'Notificações',
+            'Dados Comerciais - Metas',
+            'Dados Comerciais - Total de Lojas Instaladas',
+            'Dados Comerciais - Negócios iniciados'
+        ];
         
         // Add items from Marketing
         if (data[Tab.MARKETING] && data[Tab.MARKETING].length > 0) {
@@ -937,21 +1186,7 @@ const App: React.FC = () => {
     });
 
     return (
-      <div className="h-full p-6 overflow-y-auto custom-scrollbar">
-        <div className="flex justify-between items-center mb-8">
-          <h2 className="text-2xl font-bold flex items-center gap-3 text-white">
-            <span className="w-2 h-8 bg-[#70d44c] rounded-full block"></span>
-            Visão Geral
-          </h2>
-          <button 
-              onClick={() => setShowHomeSettings(!showHomeSettings)}
-              title="Adicionar Quadros"
-              className={`p-2 rounded-lg transition-colors flex items-center justify-center ${showHomeSettings ? 'bg-[#70d44c] text-[#00243a]' : 'bg-white/5 text-gray-400 hover:text-white'}`}
-          >
-              <PlusCircle size={20} />
-          </button>
-        </div>
-
+      <div className="h-full px-10 pt-10 pb-10 overflow-hidden">
         {showHomeSettings && (
             <div className="mb-6 p-6 bg-[#001a2c] rounded-xl border border-[#70d44c]/30 animate-in fade-in slide-in-from-top-2">
                 <div className="flex justify-between items-center mb-6">
@@ -997,7 +1232,7 @@ const App: React.FC = () => {
                             }}
                             className="px-3 py-1.5 bg-white/5 hover:bg-[#70d44c]/10 border border-white/10 hover:border-[#70d44c]/30 rounded-lg text-[10px] text-gray-400 hover:text-white transition-all flex items-center gap-2"
                         >
-                            <PlusCircle size={12} />
+                            <Settings size={12} />
                             {item.replace('Marketing - ', '').replace('Novos Negócios - ', '').replace('Negócios ganhos - ', '').replace('Negócios Perdidos - ', '')}
                         </button>
                     )) : (
@@ -1013,32 +1248,45 @@ const App: React.FC = () => {
           onDragOver={handleDragOverHome}
           onDragEnd={handleDragEndHome}
         >
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-0 mb-8 items-stretch">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-[40px] items-stretch">
                 {/* Column 1 & 2: Negócios */}
-                <div className="lg:col-span-2 flex flex-col gap-6 p-4 lg:border-r border-white/5">
-                    <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em] mb-2 px-2 border-l-2 border-[#70d44c]/30 ml-1">Negócios</h3>
+                <div className="lg:col-span-2 flex flex-col gap-[28px]">
+                    <div className="flex items-center h-6 mb-1">
+                        <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em] px-2 border-l-2 border-[#70d44c]/30">NEGÓCIOS</h3>
+                    </div>
                     <SortableContext id="negocios" items={negociosItems} strategy={rectSortingStrategy}>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 min-h-[100px]">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-[40px] auto-rows-[165px]">
                             {negociosItems.map((item, idx) => renderItem(item, idx, 'negocios'))}
                         </div>
                     </SortableContext>
                 </div>
 
                 {/* Column 3: Marketing */}
-                <div className="flex flex-col gap-6 p-4 lg:border-r border-white/5">
-                    <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em] mb-2 px-2 border-l-2 border-[#70d44c]/30 ml-1">Marketing</h3>
+                <div className="flex flex-col gap-[28px]">
+                    <div className="flex items-center h-6 mb-1">
+                        <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em] px-2 border-l-2 border-[#70d44c]/30">MARKETING</h3>
+                    </div>
                     <SortableContext id="marketing" items={marketingItems} strategy={verticalListSortingStrategy}>
-                        <div className="flex flex-col gap-6 min-h-[100px]">
+                        <div className="grid grid-cols-1 gap-[40px] auto-rows-[165px]">
                             {marketingItems.map((item, idx) => renderItem(item, idx, 'marketing'))}
                         </div>
                     </SortableContext>
                 </div>
 
                 {/* Column 4: Outros */}
-                <div className="flex flex-col gap-6 p-4">
-                    <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em] mb-2 px-2 border-l-2 border-[#70d44c]/30 ml-1">Outros</h3>
+                <div className="flex flex-col gap-[28px]">
+                    <div className="flex justify-between items-center h-6 mb-1">
+                        <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em] px-2 border-l-2 border-[#70d44c]/30">OUTROS</h3>
+                        <button 
+                            onClick={() => setShowHomeSettings(!showHomeSettings)}
+                            title="Configurar Quadros"
+                            className={`p-1 rounded-lg transition-colors flex items-center justify-center ${showHomeSettings ? 'text-[#70d44c]' : 'text-gray-500 hover:text-white'}`}
+                        >
+                            <Settings size={18} />
+                        </button>
+                    </div>
                     <SortableContext id="outros" items={outrosItems} strategy={verticalListSortingStrategy}>
-                        <div className="flex flex-col gap-6 min-h-[100px]">
+                        <div className="grid grid-cols-1 gap-[40px] auto-rows-[165px]">
                             {outrosItems.map((item, idx) => renderItem(item, idx, 'outros'))}
                         </div>
                     </SortableContext>
@@ -1065,10 +1313,10 @@ const App: React.FC = () => {
     setShowSettings: (show: boolean) => void = () => {},
     onDragEnd: (event: DragEndEvent) => void = () => {}
   ) => {
-    if (!grid || grid.length === 0) {
+    if ((!grid || grid.length === 0) && loading) {
         return (
-            <div className="p-12 text-center text-gray-500 flex flex-col items-center">
-                <Loader2 className="animate-spin mb-4" />
+            <div className="p-12 text-center text-gray-500 flex flex-col items-center justify-center h-full">
+                <Loader2 className="animate-spin mb-4 text-[#70d44c]" size={40} />
                 <p>Carregando dados da planilha...</p>
             </div>
         );
@@ -1100,7 +1348,7 @@ const App: React.FC = () => {
                         title="Configurar Topo"
                         className={`p-2 rounded-lg transition-colors flex items-center justify-center ${showSettings ? 'bg-[#70d44c] text-[#00243a]' : 'bg-white/5 text-gray-400 hover:text-white'}`}
                     >
-                        <Settings2 size={20} />
+                        <Settings size={20} />
                     </button>
                 </div>
             </div>
@@ -1145,7 +1393,7 @@ const App: React.FC = () => {
                                 className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs text-white focus:outline-none focus:border-[#70d44c] transition-all pl-9"
                             />
                             <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
-                                <PlusCircle size={14} />
+                                <Settings size={14} />
                             </div>
                         </div>
                     </div>
@@ -1157,7 +1405,7 @@ const App: React.FC = () => {
                                 onClick={() => togglePin(item)}
                                 className="px-3 py-1.5 bg-white/5 hover:bg-[#70d44c]/10 border border-white/10 hover:border-[#70d44c]/30 rounded-lg text-[10px] text-gray-400 hover:text-white transition-all flex items-center gap-2"
                             >
-                                <PlusCircle size={12} />
+                                <Settings size={12} />
                                 {item}
                             </button>
                         )) : (
@@ -1457,7 +1705,7 @@ const App: React.FC = () => {
   };
 
   // 4. COMMERCIAL DATA VIEW
-  const renderCommercialDataView = () => {
+   const renderCommercialDataView = () => {
     const isInitialLoading = loading && Object.keys(data).length === 0;
     if (isInitialLoading) {
         return (
@@ -1479,12 +1727,28 @@ const App: React.FC = () => {
     const planoCompletoData = opportunitiesGrid.length > 5 ? opportunitiesGrid.slice(5, 16) : [];
     const planoDigitalData = opportunitiesGrid.length > 26 ? opportunitiesGrid.slice(26, 37) : [];
 
-    // Filter stores list
-    const filteredStores = storesGrid.slice(1).filter(row => row[0] && row[0].trim() !== '' && row[2] && row[2].trim() !== '');
-    const storesCount = filteredStores.length;
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    
+    const lastMonthDate = new Date(currentYear, currentMonth - 1, 1);
+    const lastMonth = lastMonthDate.getMonth();
+    const lastMonthYear = lastMonthDate.getFullYear();
+
+    // Filter stores list - focus on last month as requested
+    const allStores = storesGrid.slice(1).filter(row => row[0] && row[0].trim() !== '' && row[2] && row[2].trim() !== '');
+    
+    // Stores from last month (e.g., February if today is March)
+    const lastMonthStores = allStores.filter(row => {
+        const d = parseDate(row[0]);
+        return d && d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear;
+    });
+
+    const totalStoresCount = allStores.length;
+    const lastMonthCount = lastMonthStores.length;
 
     return (
-      <div className="h-full p-6 overflow-y-auto custom-scrollbar">
+      <div className="h-full p-6 overflow-hidden flex flex-col">
         <div className="flex justify-between items-center mb-8 shrink-0">
           <h2 className="text-2xl font-bold flex items-center gap-3 text-white">
             <span className="w-2 h-8 bg-[#70d44c] rounded-full block"></span>
@@ -1492,9 +1756,9 @@ const App: React.FC = () => {
           </h2>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch flex-1 min-h-0 overflow-hidden">
           {/* Coluna 1: Metas */}
-          <div className="space-y-6">
+          <div className="space-y-6 h-full overflow-y-auto custom-scrollbar pr-2 pb-6">
             <div className="bg-gradient-to-br from-[#001a2c]/80 to-[#003554]/40 backdrop-blur-md border border-[#70d44c]/15 p-6 rounded-2xl shadow-xl">
                <h3 className="text-lg font-bold text-white mb-6 border-b border-white/10 pb-4">
                  {(goalsGrid[0] && goalsGrid[0][0]) || 'META GERAL ANO SC e RS - 2026'}
@@ -1605,7 +1869,7 @@ const App: React.FC = () => {
           </div>
 
           {/* Coluna 2: Oportunidades */}
-          <div className="space-y-6">
+          <div className="space-y-6 h-full overflow-y-auto custom-scrollbar pr-2 pb-6">
              <div className="bg-gradient-to-br from-[#001a2c]/80 to-[#003554]/40 backdrop-blur-md border border-[#70d44c]/15 p-6 rounded-2xl shadow-xl">
                 <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2 border-b border-white/10 pb-4">
                   <Users size={20} className="text-[#70d44c]" />
@@ -1658,30 +1922,44 @@ const App: React.FC = () => {
           </div>
 
           {/* Coluna 3: Lojas Instaladas */}
-          <div className="h-full">
-             <div className="bg-gradient-to-br from-[#001a2c]/80 to-[#003554]/40 backdrop-blur-md border border-[#70d44c]/15 p-6 rounded-2xl shadow-xl flex flex-col h-full">
+          <div className="h-full flex flex-col space-y-6 min-h-0">
+             {/* Total Lojas KPI Card */}
+             <div className="shrink-0">
+               <KpiCard 
+                  title="Total de lojas instaladas"
+                  value={totalStoresCount}
+                  subValue={lastMonthCount > 0 ? `+${lastMonthCount}` : undefined}
+                  trend={lastMonthCount > 0 ? 'up' : 'neutral'}
+                  icon={<Store size={24} />}
+                  iconPosition="left"
+                  delay={100}
+               />
+             </div>
+
+             <div className="bg-gradient-to-br from-[#001a2c]/80 to-[#003554]/40 backdrop-blur-md border border-[#70d44c]/15 p-6 pb-0 rounded-2xl shadow-xl flex flex-col flex-1 min-h-0">
                 <div className="flex items-center justify-between mb-6 border-b border-white/10 pb-4 shrink-0">
-                    <h3 className="text-lg font-bold text-white flex items-center gap-2 relative">
-                        <Store size={20} className="text-[#70d44c]" />
+                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                        <div className="relative">
+                            <Store size={20} className="text-[#70d44c]" />
+                            {lastMonthCount > 0 && (
+                                <span className="absolute -top-3 -right-3 flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-[11px] font-bold text-white shadow-lg shadow-red-500/20 border-2 border-[#001a2c]">
+                                    {lastMonthCount}
+                                </span>
+                            )}
+                        </div>
                         Lojas instaladas
-                        <span 
-                            className="absolute -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-lg shadow-red-500/20"
-                            style={{ right: '-1.5rem' }}
-                        >
-                            {storesCount}
-                        </span>
                     </h3>
                 </div>
-                <div className="flex-1">
+                <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 mb-4">
                   <table className="w-full text-sm text-left">
                     <tbody className="text-gray-300">
-                      {filteredStores.length > 0 ? filteredStores.map((row, idx) => (
+                      {lastMonthStores.length > 0 ? lastMonthStores.map((row, idx) => (
                         <tr key={idx} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                           <td className="py-3 pr-2 whitespace-nowrap">{row[0]}</td>
                           <td className="py-3 font-medium text-white">{row[2]}</td>
                         </tr>
                       )) : (
-                        <tr><td colSpan={2} className="py-8 text-center text-gray-500 italic">Nenhuma loja encontrada</td></tr>
+                        <tr><td colSpan={2} className="py-8 text-center text-gray-500 italic">Nenhuma loja instalada no último mês</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -1700,7 +1978,11 @@ const App: React.FC = () => {
         setActiveTab={setActiveTab} 
         isPlaying={isPlaying}
         progress={progress}
-        onTogglePlay={() => setIsPlaying(!isPlaying)}
+        onTogglePlay={() => {
+            const nextPlaying = !isPlaying;
+            setIsPlaying(nextPlaying);
+            if (nextPlaying) setIsSidebarCollapsed(true);
+        }}
         onShowAi={() => {
             setShowAiModal(true);
             if (!insights) handleAiInsights();
@@ -1709,6 +1991,9 @@ const App: React.FC = () => {
         onRefresh={loadData}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+        lastUpdated={lastUpdated}
+        isRefreshing={isRefreshing}
+        refreshError={refreshError}
       />
       
       <main className="flex-1 relative flex flex-col">
@@ -1733,120 +2018,199 @@ const App: React.FC = () => {
                         </button>
                     </div>
                     <div className="flex-1 overflow-y-auto p-6 space-y-8">
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">ID da Planilha Google (Principal)</label>
-                            <input 
-                                type="text" 
-                                value={sheetId}
-                                onChange={(e) => setSheetId(e.target.value)}
-                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#70d44c] transition-all mb-4"
-                                placeholder="Insira o ID da planilha..."
-                            />
-
-                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">ID da Planilha (Outros/Niver)</label>
-                            <input 
-                                type="text" 
-                                value={othersSheetId}
-                                onChange={(e) => setOthersSheetId(e.target.value)}
-                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#70d44c] transition-all mb-4"
-                                placeholder="Insira o ID da planilha de Outros..."
-                            />
+                        {/* Fontes Section */}
+                        <div className="space-y-6">
+                            <button 
+                                onClick={() => setIsSourcesCollapsed(!isSourcesCollapsed)}
+                                className="w-full flex items-center justify-between text-sm font-bold text-[#70d44c] border-b border-white/10 pb-2 mb-4 hover:text-white transition-colors"
+                            >
+                                <span>Fontes</span>
+                                {isSourcesCollapsed ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+                            </button>
                             
-                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">GID da aba "Outros"</label>
-                            <input 
-                                type="text" 
-                                value={othersGid}
-                                onChange={(e) => setOthersGid(e.target.value)}
-                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#70d44c] transition-all mb-4"
-                                placeholder="Ex: 1942815657"
-                            />
+                            {!isSourcesCollapsed && (
+                                <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300">
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">ID da Planilha Google (Principal)</label>
+                                        <input 
+                                            type="text" 
+                                            value={sheetId}
+                                            onChange={(e) => setSheetId(e.target.value)}
+                                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#70d44c] transition-all"
+                                            placeholder="Insira o ID da planilha..."
+                                        />
+                                    </div>
 
-                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">GID da aba "Lojas Instaladas"</label>
-                            <input 
-                                type="text" 
-                                value={storesGid}
-                                onChange={(e) => setStoresGid(e.target.value)}
-                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#70d44c] transition-all mb-4"
-                                placeholder="Ex: 0"
-                            />
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">ID da Planilha (Outros/Niver)</label>
+                                        <input 
+                                            type="text" 
+                                            value={othersSheetId}
+                                            onChange={(e) => setOthersSheetId(e.target.value)}
+                                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#70d44c] transition-all"
+                                            placeholder="Insira o ID da planilha de Outros..."
+                                        />
+                                    </div>
+                                    
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">GID da aba "Marketing"</label>
+                                        <input 
+                                            type="text" 
+                                            value={marketingGid}
+                                            onChange={(e) => setMarketingGid(e.target.value)}
+                                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#70d44c] transition-all"
+                                            placeholder="Ex: 78259475"
+                                        />
+                                    </div>
 
-                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">GID da aba "Novas Oportunidades"</label>
-                            <input 
-                                type="text" 
-                                value={opportunitiesGid}
-                                onChange={(e) => setOpportunitiesGid(e.target.value)}
-                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#70d44c] transition-all mb-4"
-                                placeholder="Ex: 0"
-                            />
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">GID da aba "Novos Negócios"</label>
+                                        <input 
+                                            type="text" 
+                                            value={newBusinessGid}
+                                            onChange={(e) => setNewBusinessGid(e.target.value)}
+                                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#70d44c] transition-all"
+                                            placeholder="Ex: 887251014"
+                                        />
+                                    </div>
 
-                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">GID da aba "Metas"</label>
-                            <input 
-                                type="text" 
-                                value={goalsGid}
-                                onChange={(e) => setGoalsGid(e.target.value)}
-                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#70d44c] transition-all"
-                                placeholder="Ex: 0"
-                            />
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">GID da aba "Ganhos"</label>
+                                        <input 
+                                            type="text" 
+                                            value={wonGid}
+                                            onChange={(e) => setWonGid(e.target.value)}
+                                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#70d44c] transition-all"
+                                            placeholder="Ex: 293370756"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">GID da aba "Perdidos"</label>
+                                        <input 
+                                            type="text" 
+                                            value={lostGid}
+                                            onChange={(e) => setLostGid(e.target.value)}
+                                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#70d44c] transition-all"
+                                            placeholder="Ex: 182515415"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">GID da aba "Outros"</label>
+                                        <input 
+                                            type="text" 
+                                            value={othersGid}
+                                            onChange={(e) => setOthersGid(e.target.value)}
+                                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#70d44c] transition-all"
+                                            placeholder="Ex: 1942815657"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">GID da aba "Lojas Instaladas"</label>
+                                        <input 
+                                            type="text" 
+                                            value={storesGid}
+                                            onChange={(e) => setStoresGid(e.target.value)}
+                                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#70d44c] transition-all"
+                                            placeholder="Ex: 0"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">GID da aba "Novas Oportunidades"</label>
+                                        <input 
+                                            type="text" 
+                                            value={opportunitiesGid}
+                                            onChange={(e) => setOpportunitiesGid(e.target.value)}
+                                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#70d44c] transition-all"
+                                            placeholder="Ex: 0"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">GID da aba "Metas"</label>
+                                        <input 
+                                            type="text" 
+                                            value={goalsGid}
+                                            onChange={(e) => setGoalsGid(e.target.value)}
+                                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#70d44c] transition-all"
+                                            placeholder="Ex: 0"
+                                        />
+                                    </div>
+                                </div>
+                            )}
                         </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Tempo de Apresentação (Ciclo)</label>
-                            <div className="grid grid-cols-2 gap-2">
-                                {[
-                                    { label: '1 min', value: 60000 },
-                                    { label: '5 min', value: 300000 },
-                                    { label: '15 min', value: 900000 },
-                                    { label: '30 min', value: 1800000 }
-                                ].map((opt) => (
-                                    <button
-                                        key={opt.value}
-                                        onClick={() => setCycleDuration(opt.value)}
-                                        className={`px-4 py-3 rounded-xl text-sm font-medium transition-all border ${
-                                            cycleDuration === opt.value 
-                                            ? 'bg-[#70d44c]/10 border-[#70d44c] text-[#70d44c]' 
-                                            : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
-                                        }`}
-                                    >
-                                        {opt.label}
-                                    </button>
-                                ))}
+
+                        {/* Tempo Section */}
+                        <div className="space-y-6">
+                            <h4 className="text-sm font-bold text-[#70d44c] border-b border-white/10 pb-2 mb-4">Tempo</h4>
+                            
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Tempo de Apresentação (Ciclo)</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {[
+                                        { label: '1 min', value: 60000 },
+                                        { label: '5 min', value: 300000 },
+                                        { label: '15 min', value: 900000 },
+                                        { label: '30 min', value: 1800000 }
+                                    ].map((opt) => (
+                                        <button
+                                            key={opt.value}
+                                            onClick={() => setCycleDuration(opt.value)}
+                                            className={`px-4 py-3 rounded-xl text-sm font-medium transition-all border ${
+                                                cycleDuration === opt.value 
+                                                ? 'bg-[#70d44c]/10 border-[#70d44c] text-[#70d44c]' 
+                                                : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
+                                            }`}
+                                        >
+                                            {opt.label}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
-                        </div>
 
-                        <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Intervalo de Atualização</label>
-                            <div className="grid grid-cols-2 gap-2">
-                                {[
-                                    { label: '1 min', value: 60000 },
-                                    { label: '10 min', value: 600000 },
-                                    { label: '1 hora', value: 3600000 },
-                                    { label: '12 horas', value: 43200000 }
-                                ].map((opt) => (
-                                    <button
-                                        key={opt.value}
-                                        onClick={() => setRefreshInterval(opt.value)}
-                                        className={`px-4 py-3 rounded-xl text-sm font-medium transition-all border ${
-                                            refreshInterval === opt.value 
-                                            ? 'bg-[#70d44c]/10 border-[#70d44c] text-[#70d44c]' 
-                                            : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
-                                        }`}
-                                    >
-                                        {opt.label}
-                                    </button>
-                                ))}
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Intervalo de Atualização</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {[
+                                        { label: '1 min', value: 60000 },
+                                        { label: '10 min', value: 600000 },
+                                        { label: '1 hora', value: 3600000 },
+                                        { label: '12 horas', value: 43200000 }
+                                    ].map((opt) => (
+                                        <button
+                                            key={opt.value}
+                                            onClick={() => setRefreshInterval(opt.value)}
+                                            className={`px-4 py-3 rounded-xl text-sm font-medium transition-all border ${
+                                                refreshInterval === opt.value 
+                                                ? 'bg-[#70d44c]/10 border-[#70d44c] text-[#70d44c]' 
+                                                : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10'
+                                            }`}
+                                        >
+                                            {opt.label}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         </div>
                     </div>
                     <div className="p-6 bg-[#001524] border-t border-white/10">
                         <button 
-                            onClick={() => {
+                            onClick={async () => {
                                 try {
-                                    // Explicitly save to localStorage before reload
+                                    // Explicitly save to localStorage
                                     localStorage.setItem('sheetId', sheetId);
                                     localStorage.setItem('othersSheetId', othersSheetId);
                                     localStorage.setItem('othersGid', othersGid);
                                     localStorage.setItem('storesGid', storesGid);
                                     localStorage.setItem('opportunitiesGid', opportunitiesGid);
                                     localStorage.setItem('goalsGid', goalsGid);
+                                    localStorage.setItem('marketingGid', marketingGid);
+                                    localStorage.setItem('newBusinessGid', newBusinessGid);
+                                    localStorage.setItem('wonGid', wonGid);
+                                    localStorage.setItem('lostGid', lostGid);
                                     localStorage.setItem('cycleDuration', cycleDuration.toString());
                                     localStorage.setItem('refreshInterval', refreshInterval.toString());
                                     localStorage.setItem('homeLayout', JSON.stringify(homeLayout));
@@ -1872,10 +2236,13 @@ const App: React.FC = () => {
                                     localStorage.setItem('customLostTitles', JSON.stringify(customLostTitles));
                                     
                                     setShowGlobalSettings(false);
-                                    // Small delay to ensure localStorage is written
-                                    setTimeout(() => {
-                                        window.location.reload();
-                                    }, 100);
+                                    
+                                    // Instead of full reload, just trigger a data refresh
+                                    // This is more reliable and provides better UX
+                                    await loadData();
+                                    
+                                    // Optional: if GIDs changed, some internal states might need reset
+                                    // but loadData should handle the main data update.
                                 } catch (e) {
                                     console.error("Erro ao salvar configurações:", e);
                                     alert("Erro ao salvar configurações. Verifique o console.");
@@ -1883,7 +2250,7 @@ const App: React.FC = () => {
                             }}
                             className="w-full py-4 bg-[#70d44c] text-[#001a2c] font-bold rounded-xl hover:bg-[#62ba42] transition-all shadow-lg shadow-[#70d44c]/10"
                         >
-                            Salvar e Recarregar
+                            Salvar e Atualizar
                         </button>
                     </div>
                 </div>

@@ -82,46 +82,60 @@ export const fetchAllSheetData = async (
   othersSheetId: string = SHEET_ID,
   storesGid: string = SHEET_TAB_IDS.STORES_INSTALLED,
   opportunitiesGid: string = SHEET_TAB_IDS.NEW_OPPORTUNITIES,
-  goalsGid: string = SHEET_TAB_IDS.GOALS
+  goalsGid: string = SHEET_TAB_IDS.GOALS,
+  marketingGid: string = SHEET_TAB_IDS.MARKETING,
+  newBusinessGid: string = SHEET_TAB_IDS.NEW_BUSINESS,
+  wonGid: string = SHEET_TAB_IDS.WON,
+  lostGid: string = SHEET_TAB_IDS.LOST
 ): Promise<AppData> => {
   const getBaseUrl = (id: string) => `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=`;
 
-  const fetchDataForTab = async (id: string, gid: string, tabName: string): Promise<SheetGrid> => {
+  const fetchDataForTab = async (id: string, gid: string, tabName: string, retries = 2): Promise<SheetGrid> => {
     if (gid === undefined || gid === null || gid === '') return []; 
     
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s total timeout
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout per attempt
 
-    try {
-      const response = await fetch(getBaseUrl(id) + gid, { signal: controller.signal });
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      
-      const text = await response.text();
-      clearTimeout(timeoutId);
-      
-      if (!text || text.length < 10) {
-        console.warn(`Aba ${tabName} retornou conteúdo vazio ou inválido`);
-        return [];
+      try {
+        const response = await fetch(getBaseUrl(id) + gid, { 
+          signal: controller.signal,
+          cache: 'no-store' // Ensure we get fresh data
+        });
+        
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        
+        const text = await response.text();
+        clearTimeout(timeoutId);
+        
+        if (!text || text.length < 10) {
+          throw new Error(`Conteúdo vazio ou inválido para aba ${tabName}`);
+        }
+        
+        return parseCSVToGrid(text);
+      } catch (error: any) {
+        clearTimeout(timeoutId);
+        const isLastAttempt = attempt === retries;
+        
+        if (isLastAttempt) {
+          console.warn(`Falha definitiva ao carregar aba ${tabName} após ${retries + 1} tentativas:`, error);
+          // Return empty instead of mock to allow validation in App.tsx to catch it
+          return []; 
+        }
+        
+        // Wait a bit before retry
+        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
       }
-      
-      return parseCSVToGrid(text);
-    } catch (error: any) {
-      clearTimeout(timeoutId);
-      if (error.name === 'AbortError') {
-        console.error(`Timeout ao carregar aba ${tabName}`);
-      } else {
-        console.warn(`Erro ao carregar aba ${tabName}:`, error);
-      }
-      return generateMockGrid(tabName);
     }
+    return [];
   };
 
   try {
     const [marketing, newBusiness, won, lost, stores, opportunities, goals, others] = await Promise.all([
-      fetchDataForTab(sheetId, SHEET_TAB_IDS.MARKETING, 'Marketing'),
-      fetchDataForTab(sheetId, SHEET_TAB_IDS.NEW_BUSINESS, 'Novos Negócios'),
-      fetchDataForTab(sheetId, SHEET_TAB_IDS.WON, 'Ganhos'),
-      fetchDataForTab(sheetId, SHEET_TAB_IDS.LOST, 'Perdidos'),
+      fetchDataForTab(sheetId, marketingGid, 'Marketing'),
+      fetchDataForTab(sheetId, newBusinessGid, 'Novos Negócios'),
+      fetchDataForTab(sheetId, wonGid, 'Ganhos'),
+      fetchDataForTab(sheetId, lostGid, 'Perdidos'),
       fetchDataForTab(othersSheetId, storesGid, 'Lojas Instaladas'),
       fetchDataForTab(othersSheetId, opportunitiesGid, 'Novas Oportunidades'),
       fetchDataForTab(othersSheetId, goalsGid, 'Metas'),

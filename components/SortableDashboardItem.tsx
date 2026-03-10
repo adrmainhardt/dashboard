@@ -5,9 +5,10 @@ import { CSS } from '@dnd-kit/utilities';
 interface SortableDashboardItemProps {
   id: string;
   children: React.ReactNode;
+  className?: string;
 }
 
-const SortableDashboardItem: React.FC<SortableDashboardItemProps> = ({ id, children }) => {
+const SortableDashboardItem: React.FC<SortableDashboardItemProps> = ({ id, children, className = "" }) => {
   const {
     attributes,
     listeners,
@@ -31,7 +32,7 @@ const SortableDashboardItem: React.FC<SortableDashboardItemProps> = ({ id, child
       style={style} 
       {...attributes} 
       {...listeners}
-      className="h-full"
+      className={`h-full ${className}`}
     >
       {children}
     </div>
