@@ -70,7 +70,7 @@ const App: React.FC = () => {
   const [isSourcesCollapsed, setIsSourcesCollapsed] = useState(true);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     const saved = localStorage.getItem('isSidebarCollapsed');
-    return saved === 'true';
+    return saved !== null ? saved === 'true' : true;
   });
 
   const parseDate = (dateStr: string) => {
@@ -120,9 +120,9 @@ const App: React.FC = () => {
   const [pinnedMarketingItems, setPinnedMarketingItems] = useState<string[]>(() => {
     const saved = localStorage.getItem('pinnedMarketingItems');
     try {
-      return saved ? JSON.parse(saved) : ['Leads', 'Oportunidades', 'Instagram', 'Visita site'];
+      return saved ? JSON.parse(saved) : [];
     } catch (e) {
-      return ['Leads', 'Oportunidades', 'Instagram', 'Visita site'];
+      return [];
     }
   });
   const [hiddenMarketingItems, setHiddenMarketingItems] = useState<string[]>(() => {

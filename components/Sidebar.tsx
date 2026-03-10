@@ -1,5 +1,5 @@
 import React from 'react';
-import { Menu, LayoutDashboard, Megaphone, PlusCircle, CheckCircle, XCircle, Play, Pause, Users, Settings, RefreshCw, BrainCircuit, Briefcase } from 'lucide-react';
+import { Menu, LayoutDashboard, Megaphone, PlusCircle, CheckCircle, XCircle, Play, Pause, Users, Settings, BrainCircuit, Briefcase } from 'lucide-react';
 import { Tab } from '../types';
 import { LOGO_URL } from '../constants';
 
@@ -98,16 +98,6 @@ const Sidebar: React.FC<SidebarProps> = ({
       
       {!isCollapsed && (
         <div className={`relative p-6 bg-[var(--bg-sidebar-header)]/50`}>
-          {/* Last Updated Info */}
-          {lastUpdated && (
-            <div className="mb-4 flex items-center gap-2 text-[10px] text-gray-500 font-bold uppercase tracking-widest opacity-60">
-              <RefreshCw size={10} className={`shrink-0 ${isRefreshing ? 'animate-spin text-[var(--accent)]' : ''}`} />
-              <span className={`truncate ${refreshError ? 'text-red-400' : ''}`}>
-                {isRefreshing ? 'Atualizando...' : refreshError ? 'Erro ao atualizar' : `Atualizado: ${lastUpdated}`}
-              </span>
-            </div>
-          )}
-
           {/* Progress Line (acting as border-t) */}
           <div className="absolute top-0 left-0 h-[1px] bg-[var(--border)] w-full" />
           <div 
