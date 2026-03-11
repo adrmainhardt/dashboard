@@ -11,7 +11,7 @@ import { AppData, SheetGrid, Tab, DashboardMetrics } from './types';
 import { fetchAllSheetData } from './services/dataService';
 import { generateDashboardInsights } from './services/geminiService';
 import { CURRENCY_FORMATTER, THEME } from './constants';
-import { RefreshCw, BrainCircuit, Loader2, Info, Settings2, Check, Settings, X, Cake, Clock, Coffee, ChevronUp, ChevronDown, Eye, EyeOff, GripVertical, Bell, PlusCircle, TrendingUp, Store, Users, Target, Play, MousePointer2, Handshake } from 'lucide-react';
+import { RefreshCw, BrainCircuit, Loader2, Info, Settings2, Check, Settings, X, Cake, Clock, Coffee, ChevronUp, ChevronDown, Eye, EyeOff, GripVertical, Bell, PlusCircle, TrendingUp, Store, Users, Target, Play, MousePointer2, Handshake, Instagram } from 'lucide-react';
 import {
   DndContext, 
   closestCenter,
@@ -238,7 +238,7 @@ const App: React.FC = () => {
 
   // Home Dashboard State
   const [homeLayout, setHomeLayout] = useState<Record<string, string[]>>(() => {
-    const LAYOUT_VERSION = '4.0'; // Force reset to version 4.0
+    const LAYOUT_VERSION = '20.0'; // Force reset to version 20.0
     const savedVersion = localStorage.getItem('homeLayoutVersion');
     const saved = localStorage.getItem('homeLayout');
     
@@ -255,16 +255,16 @@ const App: React.FC = () => {
         'Dados Comerciais - Total de Lojas Instaladas',
         'Dados Comerciais - Metas',
         'Dados Comerciais - Negócios iniciados',
-        'Marketing - Clientes comprando',
         'Marketing - Oportunidades',
-        'Marketing - Uso App',
-        'Marketing - Baixaram o App'
+        'Marketing - Clientes comprando',
+        'Marketing - Baixaram o App',
+        'Marketing - Uso App'
       ],
       marketing: [
         'Marketing - Instagram',
+        'Marketing - Visita site',
         'Marketing - Insc. do Canal (Youtube)',
-        'Marketing - Visualizações do Canal',
-        'Marketing - Visita site'
+        'Marketing - Visualizações do Canal'
       ],
       outros: ['Clima', 'Aniversariantes', 'Tempo de Empresa', 'Notificações']
     };
@@ -285,7 +285,20 @@ const App: React.FC = () => {
   const [customHomeTitles, setCustomHomeTitles] = useState<Record<string, string>>(() => {
     const saved = localStorage.getItem('customHomeTitles');
     try {
-      return saved ? JSON.parse(saved) : {};
+      return saved ? JSON.parse(saved) : {
+        'Marketing - Visualizações do Canal': 'Visualizações Youtube',
+        'Marketing - Insc. do Canal (Youtube)': 'Inscritos Youtube',
+        'Marketing - Inscritos Youtube': 'Inscritos Youtube',
+        'Marketing - Visita site': 'Visita Site',
+        'Marketing - Instagram': 'Instagram',
+        'Marketing - Clientes comprando': 'Clientes Comprando',
+        'Marketing - Oportunidades': 'Oportunidades',
+        'Marketing - Uso App': 'Uso App',
+        'Marketing - Baixaram o App': 'Baixaram o App',
+        'Dados Comerciais - Total de Lojas Instaladas': 'Total de Lojas Instaladas',
+        'Dados Comerciais - Metas': 'Meta Mês Fevereiro - SC',
+        'Dados Comerciais - Negócios iniciados': 'Negócios Iniciados'
+      };
     } catch (e) {
       return {};
     }
@@ -780,10 +793,28 @@ const App: React.FC = () => {
     if (!grid || !rowLabel || grid.length === 0) return { total: 0, diff30: 0, sparklineData: [] };
     
     // Find the header row to get column indices
-    const headerRow = grid.find(r => r.some(cell => cell.toLowerCase().includes('total'))) || grid[0];
-    let totalIndex = headerRow.findIndex(cell => cell.toLowerCase().includes('total'));
+    const headerRow = grid.find(r => r.some(cell => cell && cell.toLowerCase().includes('total'))) || grid[0];
     
-    // Fallback: if no "Total" column found, use the last column
+    // Find the "Total" column index more robustly
+    let totalIndex = -1;
+    for (let i = headerRow.length - 1; i >= 0; i--) {
+        if (headerRow[i] && headerRow[i].toLowerCase().includes('total')) {
+            totalIndex = i;
+            break;
+        }
+    }
+    
+    // Fallback: if no "Total" column found, use the last non-empty column of the header
+    if (totalIndex === -1) {
+        for (let i = headerRow.length - 1; i >= 0; i--) {
+            if (headerRow[i] && headerRow[i].trim() !== '') {
+                totalIndex = i;
+                break;
+            }
+        }
+    }
+    
+    // Ultimate fallback
     if (totalIndex === -1) totalIndex = headerRow.length - 1;
 
     // Find the row. 
@@ -801,6 +832,11 @@ const App: React.FC = () => {
       // Search for the row label primarily in the first column for better precision
       row = grid.find(r => r[0] && r[0].toLowerCase().trim().includes(searchLabel));
       
+      // If not found and it's a YouTube subscriber label, try common variations
+      if (!row && (searchLabel.includes('youtube') && (searchLabel.includes('insc')))) {
+          row = grid.find(r => r[0] && (r[0].toLowerCase().includes('youtube') && r[0].toLowerCase().includes('insc')));
+      }
+
       // Fallback to searching all columns if not found in the first one
       if (!row) {
         row = grid.find(r => r.some(cell => cell.toLowerCase().trim().includes(searchLabel)));
@@ -818,6 +854,7 @@ const App: React.FC = () => {
     const startIndex = Math.max(1, endIndex - 30);
     
     const isCumulative = searchLabel.includes('insc. do canal') || 
+                        searchLabel.includes('inscritos youtube') || 
                         searchLabel.includes('instagram') || 
                         searchLabel.includes('seguidores');
 
@@ -1000,7 +1037,8 @@ const App: React.FC = () => {
             .replace('Novos Negócios - ', '')
             .replace('Negócios ganhos - ', '')
             .replace('Negócios Perdidos - ', '')
-            .replace('Dados Comerciais - ', '');
+            .replace('Dados Comerciais - ', '')
+            .replace('Insc. do Canal (Youtube)', 'Inscritos Youtube');
 
         if (item === 'Dados Comerciais - Metas') {
             const goals = [
@@ -1136,11 +1174,21 @@ const App: React.FC = () => {
         let icon = undefined;
         let iconPosition: 'left' | 'right' = 'right';
 
-        if (item.toLowerCase().includes('visita site')) {
+        const isYoutubeInscritos = item.toLowerCase().includes('inscritos youtube') || 
+                                 item.toLowerCase().includes('insc. do canal') ||
+                                 displayTitle.toLowerCase().includes('inscritos youtube');
+
+        if (item.toLowerCase().includes('visita site') || displayTitle.toLowerCase().includes('visita site')) {
             icon = <MousePointer2 size={24} />;
             iconPosition = 'left';
-        } else if (item.toLowerCase().includes('insc. do canal')) {
+        } else if (isYoutubeInscritos) {
+            icon = <Users size={24} />;
+            iconPosition = 'left';
+        } else if (item.toLowerCase().includes('visualizações do canal') || displayTitle.toLowerCase().includes('visualizações youtube')) {
             icon = <Play size={24} />;
+            iconPosition = 'left';
+        } else if (item.toLowerCase().includes('instagram') || displayTitle.toLowerCase().includes('instagram')) {
+            icon = <Instagram size={24} />;
             iconPosition = 'left';
         }
 
@@ -1272,7 +1320,7 @@ const App: React.FC = () => {
                             className="px-3 py-1.5 bg-white/5 hover:bg-[#70d44c]/10 border border-white/10 hover:border-[#70d44c]/30 rounded-lg text-[10px] text-gray-400 hover:text-white transition-all flex items-center gap-2"
                         >
                             <Settings size={12} />
-                            {item.replace('Marketing - ', '').replace('Novos Negócios - ', '').replace('Negócios ganhos - ', '').replace('Negócios Perdidos - ', '')}
+                            {customHomeTitles[item] || item.replace('Marketing - ', '').replace('Novos Negócios - ', '').replace('Negócios ganhos - ', '').replace('Negócios Perdidos - ', '').replace('Dados Comerciais - ', '')}
                         </button>
                     )) : (
                         <p className="text-xs text-gray-600 italic py-2">Nenhum quadro encontrado ou todos já adicionados.</p>
@@ -1317,7 +1365,10 @@ const App: React.FC = () => {
                     <div className="flex justify-between items-center h-6 mb-1">
                         <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em] px-2 border-l-2 border-[#70d44c]/30">OUTROS</h3>
                         <button 
-                            onClick={() => setShowHomeSettings(!showHomeSettings)}
+                            onClick={() => {
+                                setEditingHomeTitleId(null);
+                                setShowHomeSettings(!showHomeSettings);
+                            }}
                             title="Configurar Quadros"
                             className={`p-1 rounded-lg transition-colors flex items-center justify-center ${showHomeSettings ? 'text-[#70d44c]' : 'text-gray-500 hover:text-white'}`}
                         >
@@ -1462,6 +1513,7 @@ const App: React.FC = () => {
                                         type="text"
                                         value={customTitles[item] || ''}
                                         onChange={(e) => setCustomTitles({...customTitles, [item]: e.target.value})}
+                                        onKeyDown={(e) => e.stopPropagation()}
                                         placeholder="Título personalizado..."
                                         className="flex-1 bg-transparent border-b border-white/10 focus:border-[#70d44c] text-[10px] outline-none px-1"
                                     />
@@ -2026,7 +2078,10 @@ const App: React.FC = () => {
             setShowAiModal(true);
             if (!insights) handleAiInsights();
         }}
-        onShowSettings={() => setShowGlobalSettings(true)}
+        onShowSettings={() => {
+            setEditingHomeTitleId(null);
+            setShowGlobalSettings(true);
+        }}
         onRefresh={loadData}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}

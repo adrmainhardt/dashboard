@@ -41,7 +41,7 @@ const MetasSlideshowCard: React.FC<MetasSlideshowCardProps> = ({
     >
       <div className="flex items-center justify-between mb-2 border-b border-white/10 pb-2 shrink-0">
         <div className="flex items-center gap-2">
-          <h3 className="text-gray-400 text-[11px] font-bold uppercase tracking-[0.25em] truncate">
+          <h3 className="text-gray-400 text-[11px] font-bold uppercase tracking-[0.25em]">
             {currentGoal.title}
           </h3>
         </div>

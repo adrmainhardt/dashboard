@@ -71,9 +71,12 @@ const SlideshowCard: React.FC<SlideshowCardProps> = ({
                 value={title}
                 onChange={(e) => onTitleChange?.(e.target.value)}
                 onBlur={onTitleBlur}
-                onKeyDown={(e) => e.key === 'Enter' && onTitleBlur?.()}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                  if (e.key === 'Enter') onTitleBlur?.();
+                }}
                 onClick={(e) => e.stopPropagation()}
-                className="bg-[var(--text-main)]/10 border-b border-[var(--accent)] text-[var(--text-main)] text-[11px] font-bold uppercase tracking-[0.25em] outline-none px-1 w-full"
+                className="bg-[var(--text-main)]/20 border-b border-[var(--accent)] text-[var(--text-main)] text-[11px] font-bold uppercase tracking-[0.25em] outline-none px-1 w-full focus:bg-[var(--text-main)]/30 transition-all"
               />
             ) : (
               <h3 
@@ -83,7 +86,7 @@ const SlideshowCard: React.FC<SlideshowCardProps> = ({
                     onTitleClick(e);
                   }
                 }}
-                className={`text-[var(--text-muted)] text-[11px] font-bold uppercase tracking-[0.25em] truncate pr-2 ${onTitleClick ? 'cursor-pointer hover:text-[var(--text-main)]' : ''}`}
+                className={`text-[var(--text-muted)] text-[11px] font-bold uppercase tracking-[0.25em] ${onTitleClick ? 'cursor-pointer hover:text-[var(--text-main)]' : ''}`}
               >
                 {title}
               </h3>

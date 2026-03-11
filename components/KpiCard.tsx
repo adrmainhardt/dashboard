@@ -78,9 +78,12 @@ const KpiCard: React.FC<KpiCardProps> = ({
                   value={title}
                   onChange={(e) => onTitleChange?.(e.target.value)}
                   onBlur={onTitleBlur}
-                  onKeyDown={(e) => e.key === 'Enter' && onTitleBlur?.()}
+                  onKeyDown={(e) => {
+                    e.stopPropagation();
+                    if (e.key === 'Enter') onTitleBlur?.();
+                  }}
                   onClick={(e) => e.stopPropagation()}
-                  className="bg-white/10 border-b border-[#70d44c] text-white text-[10px] font-bold uppercase tracking-[0.2em] outline-none px-1 w-full"
+                  className="bg-white/20 border-b border-[#70d44c] text-white text-[10px] font-bold uppercase tracking-[0.2em] outline-none px-1 w-full focus:bg-white/30 transition-all"
                 />
               ) : (
                 <h3 
@@ -90,7 +93,7 @@ const KpiCard: React.FC<KpiCardProps> = ({
                       onTitleClick(e);
                     }
                   }}
-                  className={`text-gray-400 text-[11px] font-bold uppercase tracking-[0.25em] truncate pr-2 ${onTitleClick ? 'cursor-pointer hover:text-white' : ''}`}
+                  className={`text-gray-400 text-[11px] font-bold uppercase tracking-[0.25em] ${onTitleClick ? 'cursor-pointer hover:text-white' : ''}`}
                 >
                   {title}
                 </h3>
@@ -130,9 +133,12 @@ const KpiCard: React.FC<KpiCardProps> = ({
                   value={title}
                   onChange={(e) => onTitleChange?.(e.target.value)}
                   onBlur={onTitleBlur}
-                  onKeyDown={(e) => e.key === 'Enter' && onTitleBlur?.()}
+                  onKeyDown={(e) => {
+                    e.stopPropagation();
+                    if (e.key === 'Enter') onTitleBlur?.();
+                  }}
                   onClick={(e) => e.stopPropagation()}
-                  className="bg-white/10 border-b border-[#70d44c] text-white text-[10px] font-bold uppercase tracking-[0.2em] outline-none px-1 w-full"
+                  className="bg-white/20 border-b border-[#70d44c] text-white text-[10px] font-bold uppercase tracking-[0.2em] outline-none px-1 w-full focus:bg-white/30 transition-all"
                 />
               ) : (
                 <h3 
@@ -142,7 +148,7 @@ const KpiCard: React.FC<KpiCardProps> = ({
                       onTitleClick(e);
                     }
                   }}
-                  className={`text-gray-400 text-[11px] font-bold uppercase tracking-[0.25em] truncate pr-2 ${onTitleClick ? 'cursor-pointer hover:text-white' : ''}`}
+                  className={`text-gray-400 text-[11px] font-bold uppercase tracking-[0.25em] ${onTitleClick ? 'cursor-pointer hover:text-white' : ''}`}
                 >
                   {title}
                 </h3>
