@@ -98,9 +98,9 @@ const WeatherWidget: React.FC = () => {
   const tomorrowInfo = getWeatherStyles(today.weather_code[1]);
 
   return (
-    <div className={`rounded-2xl px-10 py-8 bg-gradient-to-br ${currentInfo.bg} backdrop-blur-md border border-white/10 shadow-lg relative overflow-hidden group h-[165px] flex flex-col justify-center`}>
+    <div className={`rounded-2xl px-6 py-8 bg-gradient-to-br ${currentInfo.bg} backdrop-blur-md border border-white/10 shadow-lg relative overflow-hidden group h-[165px] flex flex-col justify-center`}>
       {/* Content Container */}
-      <div className="relative z-10 flex items-center gap-6">
+      <div className="relative z-10 flex items-center gap-4">
         
         {/* Left: Icon (Standardized) */}
         <div className={`p-3 ${currentInfo.accent} rounded-2xl border border-white/10 group-hover:scale-110 transition-transform duration-500 shrink-0`}>
@@ -115,7 +115,7 @@ const WeatherWidget: React.FC = () => {
               <span className="text-3xl font-bold text-white tracking-tighter leading-none">{Math.round(current.temperature_2m)}°C</span>
               <span className="text-[10px] text-gray-300 font-medium">{Math.round(today.temperature_2m_min[0])}°/{Math.round(today.temperature_2m_max[0])}°</span>
             </div>
-            <p className="text-[11px] text-white font-bold mt-1 truncate">
+            <p className="text-[11px] text-white font-bold mt-1 leading-tight">
               {currentInfo.label}
             </p>
           </div>
@@ -126,7 +126,7 @@ const WeatherWidget: React.FC = () => {
             <div className="flex items-center gap-2">
               <div className="flex flex-col items-end leading-tight">
                 <span className="text-sm font-bold text-white">{Math.round(today.temperature_2m_max[1])}°C</span>
-                <span className="text-[9px] text-gray-300 font-medium whitespace-nowrap">{tomorrowInfo.label}</span>
+                <span className="text-[9px] text-gray-300 font-medium max-w-[65px] leading-[1.1]">{tomorrowInfo.label}</span>
               </div>
               <div className="opacity-80 scale-75">
                 {tomorrowInfo.icon}
